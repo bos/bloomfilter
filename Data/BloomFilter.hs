@@ -24,10 +24,10 @@ module Data.BloomFilter
     , (:*:)(..)
     ) where
 
-import Control.Monad (forM_, ap)
+import Control.Monad (forM_)
 import Control.Monad.ST (ST, runST)
 import Data.Array.Vector
-import Data.Bits ((.&.), (.|.), shiftL, shiftR)
+import Data.Bits ((.&.), (.|.), shiftL)
 import Data.Word (Word32)
 import Foreign.Storable (sizeOf)
 
@@ -111,9 +111,6 @@ bitsToLength :: Int -> Int
 bitsToLength nubitsMB =
     ((nubitsMB - 1) `div` bitsInHash) + 1
 
-lengthToBits :: Int -> Int
-lengthToBits numElems = numElems * bitsInHash
-
 lengthMB :: MBloom a s -> Int
 {-# INLINE lengthMB #-}
 lengthMB mb = bitsInHash * lengthMU (bitsMB mb)
@@ -129,8 +126,8 @@ unfoldUB hashes nubitsMB f k =
       mb <- newMB hashes nubitsMB
       loop mb k
       unsafeFreezeMB mb
-  where loop mb k = case f k of
-                      JustS (a :*: k') -> insertMB mb a >> loop mb k'
+  where loop mb j = case f j of
+                      JustS (a :*: j') -> insertMB mb a >> loop mb j'
                       _ -> return ()
 
 fromListUB :: [a -> Hash] -> Int -> [a] -> UBloom a
@@ -138,13 +135,3 @@ fromListUB :: [a -> Hash] -> Int -> [a] -> UBloom a
 fromListUB hashes nubitsMB = unfoldUB hashes nubitsMB convert
   where convert (x:xs) = JustS (x :*: xs)
         convert _ = NothingS
-
-tryM = runST $ do
-         mb <- newMB [fromIntegral] 32
-         insertMB mb (1::Int)
-         (,) `fmap` lookupMB mb 1 `ap` lookupMB mb 2
-
-tryU = runST $ do
-         mb <- newMB [fromIntegral] 32
-         insertMB mb (1::Int)
-         unsafeFreezeMB mb
