@@ -33,7 +33,13 @@ mixing with 12*3 instructions on 3 integers than you can with 3 instructions
 on 1 byte), but shoehorning those bytes into integers efficiently is messy.
 -------------------------------------------------------------------------------
 */
-#define SELF_TEST 1
+/* #define SELF_TEST 1 */
+
+#define hashword _jenkins_hashword
+#define hashword2 _jenkins_hashword2
+#define hashlittle _jenkins_hashlittle
+#define hashlittle2 _jenkins_hashlittle2
+#define hashbig _jenkins_hashbig
 
 #include <stdio.h>      /* defines printf for tests */
 #include <time.h>       /* defines time_t for timings in the test */
