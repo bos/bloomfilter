@@ -34,29 +34,27 @@ import Foreign.Storable (sizeOf)
 type Hash = Word32
 
 data MBloom a s = MB {
-      hashesMB :: [a -> Hash]
+      hashMB :: a -> [Hash]
     , bitsMB :: {-# UNPACK #-} !(MUArr Hash s)
     }
 
 data UBloom a = UB {
-      hashesUB :: [a -> Hash]
+      hashUB :: a -> [Hash]
     , bitsUB :: {-# UNPACK #-} !(UArr Hash)
     }
 
 instance Show (MBloom a s) where
-    show mb = "MBloom { " ++ (show . length $ hashesMB mb) ++ " hashes, " ++
-              show (lengthMB mb) ++ " bits } "
+    show mb = "MBloom { " ++ show (lengthMB mb) ++ " bits } "
 
 instance Show (UBloom a) where
-    show ub = "UBloom { " ++ (show . length $ hashesUB ub) ++ " hashes, " ++
-              show (lengthUB ub) ++ " bits } "
+    show ub = "UBloom { " ++ show (lengthUB ub) ++ " bits } "
 
-newMB :: [a -> Hash] -> Int -> ST s (MBloom a s)
-newMB hashes nubitsMB = do
+newMB :: (a -> [Hash]) -> Int -> ST s (MBloom a s)
+newMB hash numBits = do
     mu <- newMU numElems
     zeroFill mu 0
-    return (MB hashes mu)
-  where numElems = case bitsToLength nubitsMB of
+    return (MB hash mu)
+  where numElems = case bitsToLength numBits of
                      1 -> 2
                      n -> n
         zeroFill mu n | n == numElems = return ()
@@ -66,12 +64,12 @@ dm :: Int -> Int -> (Int :*: Int)
 dm x y = (x `div` y) :*: (x `mod` y)
 
 hashesM :: MBloom a s -> a -> [(Int :*: Int)]
-hashesM mb elt = map hash (hashesMB mb)
-    where hash f = (fromIntegral (f elt) `mod` lengthMB mb) `dm` bitsInHash
+hashesM mb elt = map go (hashMB mb elt)
+    where go k = (fromIntegral k `mod` lengthMB mb) `dm` bitsInHash
 
 hashesU :: UBloom a -> a -> [(Int :*: Int)]
-hashesU ub elt = map hash (hashesUB ub)
-    where hash f = (fromIntegral (f elt) `mod` lengthUB ub) `dm` bitsInHash
+hashesU ub elt = map go (hashUB ub elt)
+    where go k = (fromIntegral k `mod` lengthUB ub) `dm` bitsInHash
 
 insertMB :: MBloom a s -> a -> ST s ()
 {-# INLINE insertMB #-}
@@ -102,14 +100,13 @@ unsafeFreezeMB :: MBloom a s -> ST s (UBloom a)
 {-# INLINE unsafeFreezeMB #-}
 unsafeFreezeMB mb = do
   u <- unsafeFreezeAllMU (bitsMB mb)
-  return (UB (hashesMB mb) u)
+  return (UB (hashMB mb) u)
 
 bitsInHash :: Int
 bitsInHash = sizeOf (undefined :: Hash) * 8
 
 bitsToLength :: Int -> Int
-bitsToLength nubitsMB =
-    ((nubitsMB - 1) `div` bitsInHash) + 1
+bitsToLength numBits = ((numBits - 1) `div` bitsInHash) + 1
 
 lengthMB :: MBloom a s -> Int
 {-# INLINE lengthMB #-}
@@ -119,19 +116,19 @@ lengthUB :: UBloom a -> Int
 {-# INLINE lengthUB #-}
 lengthUB mb = bitsInHash * lengthU (bitsUB mb)
 
-unfoldUB :: [a -> Hash] -> Int -> (b -> MaybeS (a :*: b)) -> b -> UBloom a
+unfoldUB :: (a -> [Hash]) -> Int -> (b -> MaybeS (a :*: b)) -> b -> UBloom a
 {-# INLINE unfoldUB #-}
-unfoldUB hashes nubitsMB f k =
+unfoldUB hashes numBits f k =
     runST $ do
-      mb <- newMB hashes nubitsMB
+      mb <- newMB hashes numBits
       loop mb k
       unsafeFreezeMB mb
   where loop mb j = case f j of
                       JustS (a :*: j') -> insertMB mb a >> loop mb j'
                       _ -> return ()
 
-fromListUB :: [a -> Hash] -> Int -> [a] -> UBloom a
+fromListUB :: (a -> [Hash]) -> Int -> [a] -> UBloom a
 {-# INLINE fromListUB #-}
-fromListUB hashes nubitsMB = unfoldUB hashes nubitsMB convert
+fromListUB hashes numBits = unfoldUB hashes numBits convert
   where convert (x:xs) = JustS (x :*: xs)
         convert _ = NothingS
