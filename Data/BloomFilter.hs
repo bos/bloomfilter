@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE Rank2Types, TypeOperators #-}
 
 module Data.BloomFilter
     (
@@ -76,10 +76,10 @@ newMB hash numBits = do
                      1 -> 2
                      n -> n
 
--- | Create an immutable Bloom filter, using the given setup code.
+-- | Create an immutable Bloom filter, using the given setup function.
 createB :: (a -> [Hash])        -- ^ family of hash functions to use
         -> Int                  -- ^ number of bits in filter
-        -> (forall s. (MBloom s a -> ST s ()))  -- ^ setup code
+        -> (forall s. (MBloom s a -> ST s ()))  -- ^ setup function
         -> Bloom a
 {-# INLINE createB #-}
 createB hash numBits body = runST $ do
@@ -87,19 +87,25 @@ createB hash numBits body = runST $ do
   body mb
   unsafeFreezeMB mb
 
+-- | An unboxed, strict pair type.
+data a :* b = {-# UNPACK #-} !a :* {-# UNPACK #-} !b
+
+dm :: Int -> Int -> (Int :* Int)
+dm x y = (x `div` y) :* (x `mod` y)
+
 -- | Hash the given value, returning a list of (word offset, bit
 -- offset) pairs, one per hash value.
-hashesM :: MBloom s a -> a -> ST s [(Int, Int)]
+hashesM :: MBloom s a -> a -> ST s [Int :* Int]
 hashesM mb elt = do
   len <- lengthMB mb
-  let go k = (fromIntegral k `mod` len) `divMod` bitsInHash
+  let go k = (fromIntegral k `mod` len) `dm` bitsInHash
   return . map go $ hashMB mb elt
 
 -- | Hash the given value, returning a list of (word offset, bit
 -- offset) pairs, one per hash value.
-hashesU :: Bloom a -> a -> [(Int, Int)]
+hashesU :: Bloom a -> a -> [Int :* Int]
 hashesU ub elt = map go (hashB ub elt)
-    where go k = (fromIntegral k `mod` lengthB ub) `divMod` bitsInHash
+    where go k = (fromIntegral k `mod` lengthB ub) `dm` bitsInHash
 
 -- | Insert a value into a mutable Bloom filter.  Afterwards, a
 -- membership query for the same value is guaranteed to return @True@.
@@ -108,7 +114,7 @@ insertMB :: MBloom s a -> a -> ST s ()
 insertMB mb elt = do
   let mu = bitArrayMB mb
   hashes <- hashesM mb elt
-  forM_ hashes $ \(word, bit) -> do
+  forM_ hashes $ \(word :* bit) -> do
       old <- readArray mu word
       writeArray mu word (old .|. (1 `shiftL` bit))
 
@@ -119,7 +125,7 @@ elemMB :: a -> MBloom s a -> ST s Bool
 {-# INLINE elemMB #-}
 elemMB elt mb = hashesM mb elt >>= loop
   where mu = bitArrayMB mb
-        loop ((word, bit):wbs) = do
+        loop ((word :* bit):wbs) = do
           i <- readArray mu word
           if i .&. (1 `shiftL` bit) /= 0
             then return True
@@ -132,7 +138,7 @@ elemMB elt mb = hashesM mb elt >>= loop
 elemB :: a -> Bloom a -> Bool
 {-# INLINE elemB #-}
 elemB elt ub = any test (hashesU ub elt)
-  where test (off, bit) = (bitArrayB ub ! off) .&. (1 `shiftL` bit) /= 0
+  where test (off :* bit) = (bitArrayB ub ! off) .&. (1 `shiftL` bit) /= 0
           
 -- | Create an immutable Bloom filter from a mutable one.  The mutable
 -- filter /must not/ be modified afterwards, or a runtime crash may
