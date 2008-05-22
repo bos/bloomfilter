@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE Rank2Types #-}
 
 module Data.BloomFilter
     (
@@ -7,84 +7,89 @@ module Data.BloomFilter
     , UBloom
     , unfoldUB
     , fromListUB
+    , createUB
 
     , lengthUB
     , elemUB
-    , bitsUB
 
     , MBloom
     , newMB
     , lengthMB
     , insertMB
-    , lookupMB
-    , bitsMB
+    , elemMB
     , unsafeFreezeMB
 
-    , MaybeS(..)
-    , (:*:)(..)
+    , bitArrayUB
+    , bitArrayMB
     ) where
 
-import Control.Monad (forM_)
+import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST, runST)
-import Data.Array.Vector
+import Data.Array.ST
+import Data.Array.Unboxed (UArray, (!), bounds)
 import Data.Bits ((.&.), (.|.), shiftL)
 import Data.Word (Word32)
 import Foreign.Storable (sizeOf)
 
 type Hash = Word32
 
-data MBloom a s = MB {
-      hashMB :: a -> [Hash]
-    , bitsMB :: {-# UNPACK #-} !(MUArr Hash s)
+data MBloom s a = MB {
+      hashMB :: {-# UNPACK #-} !(a -> [Hash])
+    , bitArrayMB :: {-# UNPACK #-} !(STUArray s Int Hash)
     }
 
 data UBloom a = UB {
-      hashUB :: a -> [Hash]
-    , bitsUB :: {-# UNPACK #-} !(UArr Hash)
+      hashUB :: {-# UNPACK #-} !(a -> [Hash])
+    , bitArrayUB :: {-# UNPACK #-} !(UArray Int Hash)
     }
 
-instance Show (MBloom a s) where
+instance Show (MBloom s a) where
     show mb = "MBloom { " ++ show (lengthMB mb) ++ " bits } "
 
 instance Show (UBloom a) where
     show ub = "UBloom { " ++ show (lengthUB ub) ++ " bits } "
 
-newMB :: (a -> [Hash]) -> Int -> ST s (MBloom a s)
+newMB :: (a -> [Hash]) -> Int -> ST s (MBloom s a)
 newMB hash numBits = do
-    mu <- newMU numElems
-    zeroFill mu 0
+    mu <- newArray (0,numElems-1) 0
     return (MB hash mu)
   where numElems = case bitsToLength numBits of
                      1 -> 2
                      n -> n
-        zeroFill mu n | n == numElems = return ()
-                      | otherwise     = writeMU mu n 0 >> zeroFill mu (n + 1)
 
-dm :: Int -> Int -> (Int :*: Int)
-dm x y = (x `div` y) :*: (x `mod` y)
+createUB :: (a -> [Hash]) -> Int
+         -> (forall s. (MBloom s a -> ST s ())) -> UBloom a
+{-# INLINE createUB #-}
+createUB hash numBits body = runST $ do
+  mb <- newMB hash numBits
+  body mb
+  unsafeFreezeMB mb
 
-hashesM :: MBloom a s -> a -> [(Int :*: Int)]
-hashesM mb elt = map go (hashMB mb elt)
-    where go k = (fromIntegral k `mod` lengthMB mb) `dm` bitsInHash
+hashesM :: MBloom s a -> a -> ST s [(Int, Int)]
+hashesM mb elt = do
+  len <- lengthMB mb
+  let go k = (fromIntegral k `mod` len) `divMod` bitsInHash
+  return . map go $ hashMB mb elt
 
-hashesU :: UBloom a -> a -> [(Int :*: Int)]
+hashesU :: UBloom a -> a -> [(Int, Int)]
 hashesU ub elt = map go (hashUB ub elt)
-    where go k = (fromIntegral k `mod` lengthUB ub) `dm` bitsInHash
+    where go k = (fromIntegral k `mod` lengthUB ub) `divMod` bitsInHash
 
-insertMB :: MBloom a s -> a -> ST s ()
+insertMB :: MBloom s a -> a -> ST s ()
 {-# INLINE insertMB #-}
 insertMB mb elt = do
-  let mu = bitsMB mb
-  forM_ (hashesM mb elt) $ \(word :*: bit) -> do
-      old <- readMU mu word
-      writeMU mu word (old .|. (1 `shiftL` bit))
+  let mu = bitArrayMB mb
+  hashes <- hashesM mb elt
+  forM_ hashes $ \(word, bit) -> do
+      old <- readArray mu word
+      writeArray mu word (old .|. (1 `shiftL` bit))
 
-lookupMB :: MBloom a s -> a -> ST s Bool
-{-# INLINE lookupMB #-}
-lookupMB mb elt = loop (hashesM mb elt)
-  where mu = bitsMB mb
-        loop ((word :*: bit):wbs) = do
-          i <- readMU mu word
+elemMB :: a -> MBloom s a -> ST s Bool
+{-# INLINE elemMB #-}
+elemMB elt mb = hashesM mb elt >>= loop
+  where mu = bitArrayMB mb
+        loop ((word, bit):wbs) = do
+          i <- readArray mu word
           if i .&. (1 `shiftL` bit) /= 0
             then return True
             else loop wbs
@@ -93,14 +98,11 @@ lookupMB mb elt = loop (hashesM mb elt)
 elemUB :: a -> UBloom a -> Bool
 {-# INLINE elemUB #-}
 elemUB elt ub = any test (hashesU ub elt)
-  where test (off :*: bit) = (ua `indexU` off) .&. (1 `shiftL` bit) /= 0
-        ua = bitsUB ub
+  where test (off, bit) = (bitArrayUB ub ! off) .&. (1 `shiftL` bit) /= 0
           
-unsafeFreezeMB :: MBloom a s -> ST s (UBloom a)
+unsafeFreezeMB :: MBloom s a -> ST s (UBloom a)
 {-# INLINE unsafeFreezeMB #-}
-unsafeFreezeMB mb = do
-  u <- unsafeFreezeAllMU (bitsMB mb)
-  return (UB (hashMB mb) u)
+unsafeFreezeMB mb = UB (hashMB mb) `liftM` unsafeFreeze (bitArrayMB mb)
 
 bitsInHash :: Int
 bitsInHash = sizeOf (undefined :: Hash) * 8
@@ -108,27 +110,26 @@ bitsInHash = sizeOf (undefined :: Hash) * 8
 bitsToLength :: Int -> Int
 bitsToLength numBits = ((numBits - 1) `div` bitsInHash) + 1
 
-lengthMB :: MBloom a s -> Int
+countBits :: (Int, Int) -> Int
+countBits = (bitsInHash *) . (1+) . snd
+
+lengthMB :: MBloom s a -> ST s Int
 {-# INLINE lengthMB #-}
-lengthMB mb = bitsInHash * lengthMU (bitsMB mb)
+lengthMB mb = countBits `liftM` getBounds (bitArrayMB mb)
 
 lengthUB :: UBloom a -> Int
 {-# INLINE lengthUB #-}
-lengthUB mb = bitsInHash * lengthU (bitsUB mb)
+lengthUB = countBits . bounds . bitArrayUB
 
-unfoldUB :: (a -> [Hash]) -> Int -> (b -> MaybeS (a :*: b)) -> b -> UBloom a
+unfoldUB :: (a -> [Hash]) -> Int -> (b -> Maybe (a, b)) -> b -> UBloom a
 {-# INLINE unfoldUB #-}
-unfoldUB hashes numBits f k =
-    runST $ do
-      mb <- newMB hashes numBits
-      loop mb k
-      unsafeFreezeMB mb
-  where loop mb j = case f j of
-                      JustS (a :*: j') -> insertMB mb a >> loop mb j'
+unfoldUB hashes numBits f k = createUB hashes numBits (loop k)
+  where loop j mb = case f j of
+                      Just (a, j') -> insertMB mb a >> loop j' mb
                       _ -> return ()
 
 fromListUB :: (a -> [Hash]) -> Int -> [a] -> UBloom a
 {-# INLINE fromListUB #-}
 fromListUB hashes numBits = unfoldUB hashes numBits convert
-  where convert (x:xs) = JustS (x :*: xs)
-        convert _ = NothingS
+  where convert (x:xs) = Just (x, xs)
+        convert _      = Nothing
