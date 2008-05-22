@@ -40,6 +40,7 @@ import Control.Monad.ST (ST, runST)
 import Data.Array.ST
 import Data.Array.Unboxed (UArray, (!), bounds)
 import Data.Bits ((.&.), (.|.), shiftL)
+import Data.BloomFilter.Util (nextPowerOfTwo)
 import Data.Word (Word32)
 import Foreign.Storable (sizeOf)
 
@@ -51,7 +52,7 @@ data MBloom s a = MB {
     , bitArrayMB :: {-# UNPACK #-} !(STUArray s Int Hash)
     }
 
--- | Immutable Bloom filter, suitable for querying in pure code.
+-- | Immutable Bloom filter, suitable for querying from pure code.
 data Bloom a = B {
       hashB :: {-# UNPACK #-} !(a -> [Hash])
     , bitArrayB :: {-# UNPACK #-} !(UArray Int Hash)
@@ -63,18 +64,23 @@ instance Show (MBloom s a) where
 instance Show (Bloom a) where
     show ub = "Bloom { " ++ show (lengthB ub) ++ " bits } "
 
--- | Create a new mutable Bloom filter.  For a safer creation
--- interface, use 'createB'.  To return a mutable filter to pure code
--- as an immutable filter, use 'unsafeFreezeMB'.
+-- | Create a new mutable Bloom filter.  For efficiency, the number of
+-- bits used may be larger than the number requested.  For a safer
+-- creation interface, use 'createB'.  To return a mutable filter to
+-- pure code as an immutable filter, use 'unsafeFreezeMB'.
 newMB :: (a -> [Hash])          -- ^ family of hash functions to use
       -> Int                    -- ^ number of bits in filter
       -> ST s (MBloom s a)
 newMB hash numBits = do
     mu <- newArray (0,numElems-1) 0
     return (MB hash mu)
-  where numElems = case bitsToLength numBits of
+  where twoBits | numBits < 1 = 1
+                | isPowerOfTwo numBits = numBits
+                | otherwise = nextPowerOfTwo numBits
+        numElems = case bitsToLength twoBits of
                      1 -> 2
                      n -> n
+        isPowerOfTwo n = n .&. (n - 1) == 0
 
 -- | Create an immutable Bloom filter, using the given setup function.
 createB :: (a -> [Hash])        -- ^ family of hash functions to use
