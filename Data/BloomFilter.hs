@@ -4,13 +4,13 @@ module Data.BloomFilter
     (
       Hash
 
-    , UBloom
-    , unfoldUB
-    , fromListUB
-    , createUB
+    , Bloom
+    , unfoldB
+    , fromListB
+    , createB
 
-    , lengthUB
-    , elemUB
+    , lengthB
+    , elemB
 
     , MBloom
     , newMB
@@ -19,7 +19,7 @@ module Data.BloomFilter
     , elemMB
     , unsafeFreezeMB
 
-    , bitArrayUB
+    , bitArrayB
     , bitArrayMB
     ) where
 
@@ -38,16 +38,16 @@ data MBloom s a = MB {
     , bitArrayMB :: {-# UNPACK #-} !(STUArray s Int Hash)
     }
 
-data UBloom a = UB {
-      hashUB :: {-# UNPACK #-} !(a -> [Hash])
-    , bitArrayUB :: {-# UNPACK #-} !(UArray Int Hash)
+data Bloom a = B {
+      hashB :: {-# UNPACK #-} !(a -> [Hash])
+    , bitArrayB :: {-# UNPACK #-} !(UArray Int Hash)
     }
 
 instance Show (MBloom s a) where
     show mb = "MBloom { " ++ show (lengthMB mb) ++ " bits } "
 
-instance Show (UBloom a) where
-    show ub = "UBloom { " ++ show (lengthUB ub) ++ " bits } "
+instance Show (Bloom a) where
+    show ub = "Bloom { " ++ show (lengthB ub) ++ " bits } "
 
 newMB :: (a -> [Hash]) -> Int -> ST s (MBloom s a)
 newMB hash numBits = do
@@ -57,10 +57,10 @@ newMB hash numBits = do
                      1 -> 2
                      n -> n
 
-createUB :: (a -> [Hash]) -> Int
-         -> (forall s. (MBloom s a -> ST s ())) -> UBloom a
-{-# INLINE createUB #-}
-createUB hash numBits body = runST $ do
+createB :: (a -> [Hash]) -> Int
+         -> (forall s. (MBloom s a -> ST s ())) -> Bloom a
+{-# INLINE createB #-}
+createB hash numBits body = runST $ do
   mb <- newMB hash numBits
   body mb
   unsafeFreezeMB mb
@@ -71,9 +71,9 @@ hashesM mb elt = do
   let go k = (fromIntegral k `mod` len) `divMod` bitsInHash
   return . map go $ hashMB mb elt
 
-hashesU :: UBloom a -> a -> [(Int, Int)]
-hashesU ub elt = map go (hashUB ub elt)
-    where go k = (fromIntegral k `mod` lengthUB ub) `divMod` bitsInHash
+hashesU :: Bloom a -> a -> [(Int, Int)]
+hashesU ub elt = map go (hashB ub elt)
+    where go k = (fromIntegral k `mod` lengthB ub) `divMod` bitsInHash
 
 insertMB :: MBloom s a -> a -> ST s ()
 {-# INLINE insertMB #-}
@@ -95,14 +95,14 @@ elemMB elt mb = hashesM mb elt >>= loop
             else loop wbs
         loop _ = return False
 
-elemUB :: a -> UBloom a -> Bool
-{-# INLINE elemUB #-}
-elemUB elt ub = any test (hashesU ub elt)
-  where test (off, bit) = (bitArrayUB ub ! off) .&. (1 `shiftL` bit) /= 0
+elemB :: a -> Bloom a -> Bool
+{-# INLINE elemB #-}
+elemB elt ub = any test (hashesU ub elt)
+  where test (off, bit) = (bitArrayB ub ! off) .&. (1 `shiftL` bit) /= 0
           
-unsafeFreezeMB :: MBloom s a -> ST s (UBloom a)
+unsafeFreezeMB :: MBloom s a -> ST s (Bloom a)
 {-# INLINE unsafeFreezeMB #-}
-unsafeFreezeMB mb = UB (hashMB mb) `liftM` unsafeFreeze (bitArrayMB mb)
+unsafeFreezeMB mb = B (hashMB mb) `liftM` unsafeFreeze (bitArrayMB mb)
 
 bitsInHash :: Int
 bitsInHash = sizeOf (undefined :: Hash) * 8
@@ -117,19 +117,19 @@ lengthMB :: MBloom s a -> ST s Int
 {-# INLINE lengthMB #-}
 lengthMB mb = countBits `liftM` getBounds (bitArrayMB mb)
 
-lengthUB :: UBloom a -> Int
-{-# INLINE lengthUB #-}
-lengthUB = countBits . bounds . bitArrayUB
+lengthB :: Bloom a -> Int
+{-# INLINE lengthB #-}
+lengthB = countBits . bounds . bitArrayB
 
-unfoldUB :: (a -> [Hash]) -> Int -> (b -> Maybe (a, b)) -> b -> UBloom a
-{-# INLINE unfoldUB #-}
-unfoldUB hashes numBits f k = createUB hashes numBits (loop k)
+unfoldB :: (a -> [Hash]) -> Int -> (b -> Maybe (a, b)) -> b -> Bloom a
+{-# INLINE unfoldB #-}
+unfoldB hashes numBits f k = createB hashes numBits (loop k)
   where loop j mb = case f j of
                       Just (a, j') -> insertMB mb a >> loop j' mb
                       _ -> return ()
 
-fromListUB :: (a -> [Hash]) -> Int -> [a] -> UBloom a
-{-# INLINE fromListUB #-}
-fromListUB hashes numBits = unfoldUB hashes numBits convert
+fromListB :: (a -> [Hash]) -> Int -> [a] -> Bloom a
+{-# INLINE fromListB #-}
+fromListB hashes numBits = unfoldB hashes numBits convert
   where convert (x:xs) = Just (x, xs)
         convert _      = Nothing
