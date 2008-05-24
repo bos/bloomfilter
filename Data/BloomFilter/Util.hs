@@ -1,24 +1,34 @@
+{-# LANGUAGE PatternSignatures #-}
+
 module Data.BloomFilter.Util
     (
       nextPowerOfTwo
     , suggestSizing
+    , (:*)(..)
     ) where
 
 import Data.Bits ((.|.), shiftR)
 
+-- | An unboxed, strict pair type.
+data a :* b = {-# UNPACK #-} !a :* {-# UNPACK #-} !b
+            deriving (Eq, Ord, Show)
+
 -- | Suggest the best combination of filter size and number of hash
 -- functions for a Bloom filter, based on its expected maximum
--- capacity and a desired error rate.
+-- capacity and a desired false positive rate.
+--
+-- The false positive rate is the rate at which queries against the
+-- filter should return @True@ when an element is not actually
+-- present.
 suggestSizing :: Int            -- ^ expected maximum capacity
-              -> Double         -- ^ desired error rate (0 < e < 1)
+              -> Double         -- ^ desired false positive rate (0 < e < 1)
               -> (Int, Int)
 suggestSizing capacity errRate
     | capacity <= 0 = fatal "invalid capacity"
     | errRate <= 0 || errRate >= 1 = fatal "invalid error rate"
     | otherwise =
     let cap = fromIntegral capacity
-        bits, hashes :: Double
-        (bits, hashes) =
+        (bits :: Double, hashes :: Double) =
             minimum [((-k) * cap / log (1 - (errRate ** (1 / k))), k)
                      | k <- [1..100]]
     in (nextPowerOfTwo (round bits), round hashes)

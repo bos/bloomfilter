@@ -9,6 +9,9 @@ module Data.BloomFilter
 
     -- * Immutable Bloom filters
     -- ** Creation
+    -- *** Easy
+    , easyList
+    -- *** More control
     , unfoldB
     , fromListB
     , createB
@@ -38,23 +41,39 @@ module Data.BloomFilter
 import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST, runST)
 import Data.Array.ST
-import Data.Array.Unboxed (UArray, (!), bounds)
-import Data.Bits ((.&.), (.|.), shiftL)
-import Data.BloomFilter.Util (nextPowerOfTwo)
+import Data.Array.Unboxed (UArray, (!))
+import Data.Bits ((.&.), (.|.), shiftL, shiftR)
+import Data.BloomFilter.Hash (Hashable, cheapHashes)
+import Data.BloomFilter.Util
 import Data.Word (Word32)
 import Foreign.Storable (sizeOf)
+
+-- Make sure we're not performing any expensive arithmetic operations.
+import Prelude hiding ((/), (*), div, divMod, mod, rem)
+
+{-
+import Debug.Trace
+traceM :: (Show a, Monad m) => a -> m ()
+traceM v = show v `trace` return ()
+traces :: Show a => a -> b -> b
+traces s = trace (show s)
+-}
 
 type Hash = Word32
 
 -- | Mutable Bloom filter, for use within the 'ST' monad.
 data MBloom s a = MB {
       hashMB :: {-# UNPACK #-} !(a -> [Hash])
+    , shiftMB :: {-# UNPACK #-} !Int
+    , maskMB :: {-# UNPACK #-} !Int
     , bitArrayMB :: {-# UNPACK #-} !(STUArray s Int Hash)
     }
 
 -- | Immutable Bloom filter, suitable for querying from pure code.
 data Bloom a = B {
       hashB :: {-# UNPACK #-} !(a -> [Hash])
+    , shiftB :: {-# UNPACK #-} !Int
+    , maskB :: {-# UNPACK #-} !Int
     , bitArrayB :: {-# UNPACK #-} !(UArray Int Hash)
     }
 
@@ -65,62 +84,61 @@ instance Show (Bloom a) where
     show ub = "Bloom { " ++ show (lengthB ub) ++ " bits } "
 
 -- | Create a new mutable Bloom filter.  For efficiency, the number of
--- bits used may be larger than the number requested.  For a safer
--- creation interface, use 'createB'.  To return a mutable filter to
--- pure code as an immutable filter, use 'unsafeFreezeMB'.
+-- bits used may be larger than the number requested.  It is always
+-- rounded up to the nearest higher power of two.
+--
+-- For a safer creation interface, use 'createB'.  To convert a
+-- mutable filter to an immutable filter for use in pure code, use
+-- 'unsafeFreezeMB'.
 newMB :: (a -> [Hash])          -- ^ family of hash functions to use
       -> Int                    -- ^ number of bits in filter
       -> ST s (MBloom s a)
-newMB hash numBits = do
-    mu <- newArray (0,numElems-1) 0
-    return (MB hash mu)
+newMB hash numBits = MB hash shift mask `liftM` newArray (0, numElems - 1) 0
   where twoBits | numBits < 1 = 1
                 | isPowerOfTwo numBits = numBits
                 | otherwise = nextPowerOfTwo numBits
-        numElems = case bitsToLength twoBits of
-                     1 -> 2
-                     n -> n
+        numElems = max 2 (twoBits `shiftR` logBitsInHash)
+        trueBits = numElems `shiftL` logBitsInHash
+        shift = logPower2 trueBits
+        mask = trueBits - 1
         isPowerOfTwo n = n .&. (n - 1) == 0
+
+logBitsInHash :: Int
+logBitsInHash = logPower2 bitsInHash
 
 -- | Create an immutable Bloom filter, using the given setup function.
 createB :: (a -> [Hash])        -- ^ family of hash functions to use
         -> Int                  -- ^ number of bits in filter
         -> (forall s. (MBloom s a -> ST s ()))  -- ^ setup function
         -> Bloom a
-{-# INLINE createB #-}
 createB hash numBits body = runST $ do
   mb <- newMB hash numBits
   body mb
   unsafeFreezeMB mb
 
--- | An unboxed, strict pair type.
-data a :* b = {-# UNPACK #-} !a :* {-# UNPACK #-} !b
-
-dm :: Int -> Int -> (Int :* Int)
-dm x y = (x `div` y) :* (x `mod` y)
+-- | Given a filter's mask and a hash value, compute an offset into
+-- a word array and a bit offset within that word.
+hashIdx :: Int -> Word32 -> (Int :* Int)
+hashIdx mask x = (y `shiftR` logBitsInHash) :* (y .&. hashMask)
+  where hashMask = bitsInHash - 1
+        y = fromIntegral x .&. mask
 
 -- | Hash the given value, returning a list of (word offset, bit
 -- offset) pairs, one per hash value.
-hashesM :: MBloom s a -> a -> ST s [Int :* Int]
-hashesM mb elt = do
-  len <- lengthMB mb
-  let go k = (fromIntegral k `mod` len) `dm` bitsInHash
-  return . map go $ hashMB mb elt
+hashesM :: MBloom s a -> a -> [Int :* Int]
+hashesM mb elt = hashIdx (maskMB mb) `map` hashMB mb elt
 
 -- | Hash the given value, returning a list of (word offset, bit
 -- offset) pairs, one per hash value.
 hashesU :: Bloom a -> a -> [Int :* Int]
-hashesU ub elt = map go (hashB ub elt)
-    where go k = (fromIntegral k `mod` lengthB ub) `dm` bitsInHash
+hashesU ub elt = hashIdx (maskB ub) `map` hashB ub elt
 
 -- | Insert a value into a mutable Bloom filter.  Afterwards, a
 -- membership query for the same value is guaranteed to return @True@.
 insertMB :: MBloom s a -> a -> ST s ()
-{-# INLINE insertMB #-}
 insertMB mb elt = do
   let mu = bitArrayMB mb
-  hashes <- hashesM mb elt
-  forM_ hashes $ \(word :* bit) -> do
+  forM_ (hashesM mb elt) $ \(word :* bit) -> do
       old <- readArray mu word
       writeArray mu word (old .|. (1 `shiftL` bit))
 
@@ -128,54 +146,44 @@ insertMB mb elt = do
 -- present, return @True@.  If the value is not present, there is
 -- /still/ some possibility that @True@ will be returned.
 elemMB :: a -> MBloom s a -> ST s Bool
-{-# INLINE elemMB #-}
-elemMB elt mb = hashesM mb elt >>= loop
+elemMB elt mb = loop (hashesM mb elt)
   where mu = bitArrayMB mb
         loop ((word :* bit):wbs) = do
           i <- readArray mu word
-          if i .&. (1 `shiftL` bit) /= 0
-            then return True
+          if i .&. (1 `shiftL` bit) == 0
+            then return False
             else loop wbs
-        loop _ = return False
+        loop _ = return True
 
 -- | Query an immutable Bloom filter for membership.  If the value is
 -- present, return @True@.  If the value is not present, there is
 -- /still/ some possibility that @True@ will be returned.
 elemB :: a -> Bloom a -> Bool
-{-# INLINE elemB #-}
-elemB elt ub = any test (hashesU ub elt)
+elemB elt ub = all test (hashesU ub elt)
   where test (off :* bit) = (bitArrayB ub ! off) .&. (1 `shiftL` bit) /= 0
           
 -- | Create an immutable Bloom filter from a mutable one.  The mutable
 -- filter /must not/ be modified afterwards, or a runtime crash may
 -- occur.  For a safer creation interface, use 'createB'.
 unsafeFreezeMB :: MBloom s a -> ST s (Bloom a)
-{-# INLINE unsafeFreezeMB #-}
-unsafeFreezeMB mb = B (hashMB mb) `liftM` unsafeFreeze (bitArrayMB mb)
+unsafeFreezeMB mb = B (hashMB mb) (shiftMB mb) (maskMB mb) `liftM`
+                    unsafeFreeze (bitArrayMB mb)
 
 -- | Copy an immutable Bloom filter to create a mutable one.  There is
 -- no non-copying equivalent.
 thawMB :: Bloom a -> ST s (MBloom s a)
-thawMB ub = MB (hashB ub) `liftM` thaw (bitArrayB ub)
+thawMB ub = MB (hashB ub) (shiftB ub) (maskB ub) `liftM` thaw (bitArrayB ub)
 
 bitsInHash :: Int
-bitsInHash = sizeOf (undefined :: Hash) * 8
-
-bitsToLength :: Int -> Int
-bitsToLength numBits = ((numBits - 1) `div` bitsInHash) + 1
-
-countBits :: (Int, Int) -> Int
-countBits = (bitsInHash *) . (1+) . snd
+bitsInHash = sizeOf (undefined :: Hash) `shiftL` 3
 
 -- | Return the number of bits in this mutable Bloom filter.
-lengthMB :: MBloom s a -> ST s Int
-{-# INLINE lengthMB #-}
-lengthMB mb = countBits `liftM` getBounds (bitArrayMB mb)
+lengthMB :: MBloom s a -> Int
+lengthMB = shiftL 1 . shiftMB
 
 -- | Return the number of bits in this immutable Bloom filter.
 lengthB :: Bloom a -> Int
-{-# INLINE lengthB #-}
-lengthB = countBits . bounds . bitArrayB
+lengthB = shiftL 1 . shiftB
 
 -- | Build an immutable Bloom filter from a seed value.  The seeding
 -- function populates the filter as follows.
@@ -188,7 +196,6 @@ unfoldB :: (a -> [Hash])        -- ^ family of hash functions to use
         -> (b -> Maybe (a, b))  -- ^ seeding function
         -> b                    -- ^ initial seed
         -> Bloom a
-{-# INLINE unfoldB #-}
 unfoldB hashes numBits f k = createB hashes numBits (loop k)
   where loop j mb = case f j of
                       Just (a, j') -> insertMB mb a >> loop j' mb
@@ -203,9 +210,26 @@ unfoldB hashes numBits f k = createB hashes numBits (loop k)
 -- @
 fromListB :: (a -> [Hash])      -- ^ family of hash functions to use
           -> Int                -- ^ number of bits in filter
-          -> [a]                -- ^ list of values to add
+          -> [a]                -- ^ values to populate with
           -> Bloom a
-{-# INLINE fromListB #-}
 fromListB hashes numBits = unfoldB hashes numBits convert
   where convert (x:xs) = Just (x, xs)
         convert _      = Nothing
+
+-- | Create a bloom filter with the given false positive rate and
+-- members.
+easyList :: (Hashable a)
+         => Double              -- ^ desired false positive rate (0 < e < 1)
+         -> [a]                 -- ^ values to populate with
+         -> Bloom a
+easyList errRate xs =
+    let capacity = length xs
+        (numBits, numHashes) = suggestSizing capacity errRate
+    in fromListB (cheapHashes numHashes) numBits xs
+
+-- | Slow, crummy way of computing the integer log of an integer known
+-- to be a power of two.
+logPower2 :: Int -> Int
+logPower2 k = go 0 k
+    where go j 1 = j
+          go j n = go (j+1) (n `shiftR` 1)
