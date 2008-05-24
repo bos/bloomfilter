@@ -47,7 +47,6 @@ import Data.BloomFilter.Hash (Hashable, cheapHashes)
 import Data.BloomFilter.Util
 import qualified Data.ByteString as SB
 import Data.Word (Word32)
-import Foreign.Storable (sizeOf)
 
 -- Make sure we're not performing any expensive arithmetic operations.
 import Prelude hiding ((/), (*), div, divMod, mod, rem)
@@ -105,7 +104,7 @@ newMB hash numBits = MB hash shift mask `liftM` newArray (0, numElems - 1) 0
         isPowerOfTwo n = n .&. (n - 1) == 0
 
 logBitsInHash :: Int
-logBitsInHash = logPower2 bitsInHash
+logBitsInHash = 5 -- logPower2 bitsInHash
 
 -- | Create an immutable Bloom filter, using the given setup function.
 createB :: (a -> [Hash])        -- ^ family of hash functions to use
@@ -121,7 +120,7 @@ createB hash numBits body = runST $ do
 -- a word array and a bit offset within that word.
 hashIdx :: Int -> Word32 -> (Int :* Int)
 hashIdx mask x = (y `shiftR` logBitsInHash) :* (y .&. hashMask)
-  where hashMask = bitsInHash - 1
+  where hashMask = 31 -- bitsInHash - 1
         y = fromIntegral x .&. mask
 
 -- | Hash the given value, returning a list of (word offset, bit
@@ -176,7 +175,7 @@ thawMB :: Bloom a -> ST s (MBloom s a)
 thawMB ub = MB (hashB ub) (shiftB ub) (maskB ub) `liftM` thaw (bitArrayB ub)
 
 bitsInHash :: Int
-bitsInHash = sizeOf (undefined :: Hash) `shiftL` 3
+bitsInHash = 32 -- sizeOf (undefined :: Hash) `shiftL` 3
 
 -- | Return the number of bits in this mutable Bloom filter.
 lengthMB :: MBloom s a -> Int
