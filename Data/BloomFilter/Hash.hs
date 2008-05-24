@@ -73,7 +73,7 @@ hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f631)
 -- technique.  Any given input is traversed at most twice, regardless
 -- of the number of hashes requested.
 cheapHashes :: Hashable a => Int -> a -> [Word32]
-cheapHashes k v = [h1 + h2 `shiftL` i | i <- [1..fromIntegral k]]
+cheapHashes k v = [h1 + (h2 `shiftL` i) | i <- [1..fromIntegral k]]
     where (h1 :* h2) = hashS2 0x3f56da2d3ddbb9f631 0xdc61ab0530200d7554 v
 
 instance Hashable () where
