@@ -15,7 +15,7 @@ module Data.BloomFilter.Hash
     ) where
 
 import Control.Monad (foldM, liftM2)
-import Data.Bits ((.&.), shiftR, xor)
+import Data.Bits ((.&.), shiftL, shiftR, xor)
 import Data.BloomFilter.Util
 import Data.List (unfoldr)
 import Data.Int (Int8, Int16, Int32, Int64)
@@ -28,6 +28,9 @@ import Foreign.Storable (Storable, peek, sizeOf)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString as SB
 import qualified Data.ByteString.Lazy as LB
+
+-- Make sure we're not performing any expensive arithmetic operations.
+-- import Prelude hiding ((/), (*), div, divMod, mod, rem)
 
 foreign import ccall unsafe "_jenkins_hashword" hashWord
     :: Ptr CInt -> CSize -> CInt -> IO CInt
@@ -56,10 +59,9 @@ hashS salt k =
 
 hashS2 :: Hashable a => Word32 -> Word32 -> a -> (Word32 :* Word32)
 hashS2 s1 s2 k =
-    let !r = unsafePerformIO $ do
-               (a, b) <- hashIO2 k (fromIntegral s1) (fromIntegral s2)
-               return (fromIntegral a :* fromIntegral b)
-    in r
+    unsafePerformIO $ do
+      (a, b) <- hashIO2 k (fromIntegral s1) (fromIntegral s2)
+      return (fromIntegral a :* fromIntegral b)
 
 hashes :: Hashable a => Int -> a -> [Word32]
 hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f631)
@@ -71,7 +73,7 @@ hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f631)
 -- technique.  Any given input is traversed at most twice, regardless
 -- of the number of hashes requested.
 cheapHashes :: Hashable a => Int -> a -> [Word32]
-cheapHashes k v = [h1 + i * h2 | i <- [1..fromIntegral k]]
+cheapHashes k v = [h1 + h2 `shiftL` i | i <- [1..fromIntegral k]]
     where (h1 :* h2) = hashS2 0x3f56da2d3ddbb9f631 0xdc61ab0530200d7554 v
 
 instance Hashable () where
