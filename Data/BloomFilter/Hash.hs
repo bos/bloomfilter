@@ -58,6 +58,7 @@ hashS salt k =
     in r
 
 hashS2 :: Hashable a => Word32 -> Word32 -> a -> (Word32 :* Word32)
+{-# SPECIALIZE hashS2 :: Word32 -> Word32 -> SB.ByteString -> (Word32 :* Word32) #-}
 hashS2 s1 s2 k =
     unsafePerformIO $ do
       (a, b) <- hashIO2 k (fromIntegral s1) (fromIntegral s2)
@@ -73,6 +74,7 @@ hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f631)
 -- technique.  Any given input is traversed at most twice, regardless
 -- of the number of hashes requested.
 cheapHashes :: Hashable a => Int -> a -> [Word32]
+{-# SPECIALIZE cheapHashes :: Int -> SB.ByteString -> [Word32] #-}
 cheapHashes k v = [h1 + (h2 `shiftL` i) | i <- [1..fromIntegral k]]
     where (h1 :* h2) = hashS2 0x3f56da2d3ddbb9f631 0xdc61ab0530200d7554 v
 

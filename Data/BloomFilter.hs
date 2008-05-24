@@ -45,6 +45,7 @@ import Data.Array.Unboxed (UArray, (!))
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 import Data.BloomFilter.Hash (Hashable, cheapHashes)
 import Data.BloomFilter.Util
+import qualified Data.ByteString as SB
 import Data.Word (Word32)
 import Foreign.Storable (sizeOf)
 
@@ -222,6 +223,7 @@ easyList :: (Hashable a)
          => Double              -- ^ desired false positive rate (0 < e < 1)
          -> [a]                 -- ^ values to populate with
          -> Bloom a
+{-# SPECIALIZE easyList :: Double -> [SB.ByteString] -> Bloom SB.ByteString #-}
 easyList errRate xs =
     let capacity = length xs
         (numBits, numHashes) = suggestSizing capacity errRate
