@@ -174,14 +174,14 @@ unsafeFreezeMB mb = B (hashMB mb) (shiftMB mb) (maskMB mb) `liftM`
 thawMB :: Bloom a -> ST s (MBloom s a)
 thawMB ub = MB (hashB ub) (shiftB ub) (maskB ub) `liftM` thaw (bitArrayB ub)
 
-bitsInHash :: Int
-bitsInHash = 32 -- sizeOf (undefined :: Hash) `shiftL` 3
+-- bitsInHash :: Int
+-- bitsInHash = sizeOf (undefined :: Hash) `shiftL` 3
 
--- | Return the number of bits in this mutable Bloom filter.
+-- | Return the size of a mutable Bloom filter, in bits.
 lengthMB :: MBloom s a -> Int
 lengthMB = shiftL 1 . shiftMB
 
--- | Return the number of bits in this immutable Bloom filter.
+-- | Return the size of an immutable Bloom filter, in bits.
 lengthB :: Bloom a -> Int
 lengthB = shiftL 1 . shiftB
 
