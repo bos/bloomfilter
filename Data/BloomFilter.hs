@@ -37,8 +37,9 @@ module Data.BloomFilter
 
 import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST, runST)
-import Data.Array.ST
-import Data.Array.Unboxed (UArray, (!))
+import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
+import Data.Array.ST (STUArray, newArray, thaw, unsafeFreeze)
+import Data.Array.Unboxed (UArray)
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
 import Data.BloomFilter.Util
 import Data.Word (Word32)
@@ -134,8 +135,8 @@ insertMB :: MBloom s a -> a -> ST s ()
 insertMB mb elt = do
   let mu = bitArrayMB mb
   forM_ (hashesM mb elt) $ \(word :* bit) -> do
-      old <- readArray mu word
-      writeArray mu word (old .|. (1 `shiftL` bit))
+      old <- unsafeRead mu word
+      unsafeWrite mu word (old .|. (1 `shiftL` bit))
 
 -- | Query a mutable Bloom filter for membership.  If the value is
 -- present, return @True@.  If the value is not present, there is
@@ -144,7 +145,7 @@ elemMB :: a -> MBloom s a -> ST s Bool
 elemMB elt mb = loop (hashesM mb elt)
   where mu = bitArrayMB mb
         loop ((word :* bit):wbs) = do
-          i <- readArray mu word
+          i <- unsafeRead mu word
           if i .&. (1 `shiftL` bit) == 0
             then return False
             else loop wbs
@@ -155,7 +156,7 @@ elemMB elt mb = loop (hashesM mb elt)
 -- /still/ some possibility that @True@ will be returned.
 elemB :: a -> Bloom a -> Bool
 elemB elt ub = all test (hashesU ub elt)
-  where test (off :* bit) = (bitArrayB ub ! off) .&. (1 `shiftL` bit) /= 0
+  where test (off :* bit) = (bitArrayB ub `unsafeAt` off) .&. (1 `shiftL` bit) /= 0
           
 -- | Create an immutable Bloom filter from a mutable one.  The mutable
 -- filter /must not/ be modified afterwards, or a runtime crash may
