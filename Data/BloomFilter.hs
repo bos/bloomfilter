@@ -41,7 +41,7 @@ import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
 import Data.Array.ST (STUArray, newArray, thaw, unsafeFreeze)
 import Data.Array.Unboxed (UArray)
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
-import Data.BloomFilter.Util
+import Data.BloomFilter.Util ((:*)(..), nextPowerOfTwo)
 import Data.Word (Word32)
 
 -- Make sure we're not performing any expensive arithmetic operations.
