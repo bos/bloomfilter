@@ -208,9 +208,17 @@ fromListB :: (a -> [Hash])      -- ^ family of hash functions to use
           -> Int                -- ^ number of bits in filter
           -> [a]                -- ^ values to populate with
           -> Bloom a
+fromListB hashes numBits list = createB hashes numBits (loop list)
+  where loop (x:xs) mb = insertMB mb x >> loop xs mb
+        loop _ _       = return ()
+
+{-
+-- Simpler definition, but GHC doesn't inline the unfold sensibly:
+
 fromListB hashes numBits = unfoldB hashes numBits convert
   where convert (x:xs) = Just (x, xs)
         convert _      = Nothing
+-}
 
 -- | Slow, crummy way of computing the integer log of an integer known
 -- to be a power of two.
