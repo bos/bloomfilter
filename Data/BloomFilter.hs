@@ -9,9 +9,6 @@ module Data.BloomFilter
 
     -- * Immutable Bloom filters
     -- ** Creation
-    -- *** Easy
-    , easyList
-    -- *** More control
     , unfoldB
     , fromListB
     , createB
@@ -43,9 +40,7 @@ import Control.Monad.ST (ST, runST)
 import Data.Array.ST
 import Data.Array.Unboxed (UArray, (!))
 import Data.Bits ((.&.), (.|.), shiftL, shiftR)
-import Data.BloomFilter.Hash (Hashable, cheapHashes)
 import Data.BloomFilter.Util
-import qualified Data.ByteString as SB
 import Data.Word (Word32)
 
 -- Make sure we're not performing any expensive arithmetic operations.
@@ -215,18 +210,6 @@ fromListB :: (a -> [Hash])      -- ^ family of hash functions to use
 fromListB hashes numBits = unfoldB hashes numBits convert
   where convert (x:xs) = Just (x, xs)
         convert _      = Nothing
-
--- | Create a bloom filter with the given false positive rate and
--- members.
-easyList :: (Hashable a)
-         => Double              -- ^ desired false positive rate (0 < e < 1)
-         -> [a]                 -- ^ values to populate with
-         -> Bloom a
-{-# SPECIALIZE easyList :: Double -> [SB.ByteString] -> Bloom SB.ByteString #-}
-easyList errRate xs =
-    let capacity = length xs
-        (numBits, numHashes) = suggestSizing capacity errRate
-    in fromListB (cheapHashes numHashes) numBits xs
 
 -- | Slow, crummy way of computing the integer log of an integer known
 -- to be a power of two.
