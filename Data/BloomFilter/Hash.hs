@@ -15,7 +15,7 @@ module Data.BloomFilter.Hash
     ) where
 
 import Control.Monad (foldM, liftM2)
-import Data.Bits ((.&.), shiftL, shiftR, xor)
+import Data.Bits ((.&.), xor)
 import Data.BloomFilter.Util
 import Data.List (unfoldr)
 import Data.Int (Int8, Int16, Int32, Int64)

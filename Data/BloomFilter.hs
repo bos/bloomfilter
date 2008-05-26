@@ -40,9 +40,10 @@ import Control.Monad.ST (ST, runST)
 import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
 import Data.Array.ST (STUArray, newArray, thaw, unsafeFreeze)
 import Data.Array.Unboxed (UArray)
-import Data.Bits ((.&.), (.|.), shiftL, shiftR)
-import Data.BloomFilter.Util ((:*)(..), nextPowerOfTwo)
+import Data.Bits ((.&.), (.|.))
+import Data.BloomFilter.Util (FastShift(..), (:*)(..), nextPowerOfTwo)
 import Data.Word (Word32)
+import qualified Data.ByteString as SB
 
 -- Make sure we're not performing any expensive arithmetic operations.
 import Prelude hiding ((/), (*), div, divMod, mod, rem)
@@ -132,6 +133,7 @@ hashesU ub elt = hashIdx (maskB ub) `map` hashB ub elt
 -- | Insert a value into a mutable Bloom filter.  Afterwards, a
 -- membership query for the same value is guaranteed to return @True@.
 insertMB :: MBloom s a -> a -> ST s ()
+{-# SPECIALIZE insertMB :: MBloom s SB.ByteString -> SB.ByteString -> ST s () #-}
 insertMB mb elt = do
   let mu = bitArrayMB mb
   forM_ (hashesM mb elt) $ \(word :* bit) -> do
@@ -208,6 +210,8 @@ fromListB :: (a -> [Hash])      -- ^ family of hash functions to use
           -> Int                -- ^ number of bits in filter
           -> [a]                -- ^ values to populate with
           -> Bloom a
+{-# SPECIALIZE fromListB :: (SB.ByteString -> [Hash]) -> Int
+                         -> [SB.ByteString] -> Bloom SB.ByteString #-}
 fromListB hashes numBits list = createB hashes numBits (loop list)
   where loop (x:xs) mb = insertMB mb x >> loop xs mb
         loop _ _       = return ()
