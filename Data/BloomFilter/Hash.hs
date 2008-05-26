@@ -75,7 +75,7 @@ hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f631)
 -- of the number of hashes requested.
 cheapHashes :: Hashable a => Int -> a -> [Word32]
 {-# SPECIALIZE cheapHashes :: Int -> SB.ByteString -> [Word32] #-}
-cheapHashes k v = [h1 + (h2 `shiftL` i) | i <- [1..fromIntegral k]]
+cheapHashes k v = [h1 + (h2 `shiftR` i) | i <- [1..fromIntegral k]]
     where (h1 :* h2) = hashS2 0x3f56da2d3ddbb9f631 0xdc61ab0530200d7554 v
 
 instance Hashable () where
