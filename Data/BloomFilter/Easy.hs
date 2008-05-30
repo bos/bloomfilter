@@ -18,6 +18,7 @@ module Data.BloomFilter.Easy
     , easyList
     , elemB
     , lengthB
+
     -- ** Example: a spell checker
     -- $example
 
@@ -80,8 +81,8 @@ suggestSizing capacity errRate
 --import Data.BloomFilter.Easy (easyList, elemB)
 --
 --main = do
---  filt <- (easyList 0.01 . words) `fmap` readFile \"/usr/share/dict/words\"
---  let check word | word `elemB` filt = ""
+--  filt <- ('easyList' 0.01 . words) \`fmap\` readFile \"/usr/share/dict/words\"
+--  let check word | 'elemB' word filt = \"\"
 --                 | otherwise         = word ++ \"\\n\"
 --  interact (concat . map check . lines)
 -- @
