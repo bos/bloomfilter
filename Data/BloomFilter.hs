@@ -49,6 +49,7 @@ module Data.BloomFilter
     -- ** Accessors
     , lengthB
     , elemB
+    , notElemB
 
     -- * Mutable Bloom filters
     -- ** Creation
@@ -219,6 +220,13 @@ elemB :: a -> Bloom a -> Bool
 elemB elt ub = all test (hashesU ub elt)
   where test (off :* bit) = (bitArrayB ub `unsafeAt` off) .&. (1 `shiftL` bit) /= 0
           
+-- | Query an immutable Bloom filter for non-membership.  If the value
+-- /is/ present, return @False@.  If the value is not present, there
+-- is /still/ some possibility that @False@ will be returned.
+notElemB :: a -> Bloom a -> Bool
+notElemB elt ub = any test (hashesU ub elt)
+  where test (off :* bit) = (bitArrayB ub `unsafeAt` off) .&. (1 `shiftL` bit) == 0
+
 -- | Create an immutable Bloom filter from a mutable one.  The mutable
 -- filter /must not/ be modified afterwards, or a runtime crash may
 -- occur.  For a safer creation interface, use 'createB'.

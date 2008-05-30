@@ -17,6 +17,7 @@ module Data.BloomFilter.Easy
       Bloom
     , easyList
     , elemB
+    , notElemB
     , lengthB
 
     -- ** Example: a spell checker
@@ -26,7 +27,7 @@ module Data.BloomFilter.Easy
     , suggestSizing
     ) where
 
-import Data.BloomFilter (Bloom, elemB, fromListB, lengthB)
+import Data.BloomFilter (Bloom, elemB, fromListB, lengthB, notElemB)
 import Data.BloomFilter.Hash (Hashable, cheapHashes)
 import Data.BloomFilter.Util (nextPowerOfTwo)
 import qualified Data.ByteString as SB

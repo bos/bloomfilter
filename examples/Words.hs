@@ -3,10 +3,22 @@
 -- queries it exhaustively.
 
 import Control.Monad (forM_, mapM_)
-import Data.BloomFilter.Easy (easyList, elemB, lengthB)
+import Data.BloomFilter (Bloom, fromListB, elemB, lengthB)
+import Data.BloomFilter.Hash (cheapHashes)
+import Data.BloomFilter.Easy (easyList, suggestSizing)
 import qualified Data.ByteString.Char8 as B
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import System.Environment (getArgs)
+
+conservative, aggressive :: Double -> [B.ByteString] -> Bloom B.ByteString
+conservative = easyList
+
+aggressive fpr xs
+    = let (size, numHashes) = suggestSizing (length xs) fpr
+          k = 3
+      in fromListB (cheapHashes (numHashes - k)) (size * k) xs
+
+testFunction = aggressive
 
 main = do
   args <- getArgs
@@ -18,7 +30,7 @@ main = do
     putStrLn $ {-# SCC "words/length" #-} show (length words) ++ " words"
     b <- getCurrentTime
     putStrLn $ show (diffUTCTime b a) ++ "s to count words"
-    let filt = {-# SCC "construct" #-} easyList 0.01 words
+    let filt = {-# SCC "construct" #-} testFunction 0.01 words
     print filt
     c <- getCurrentTime
     putStrLn $ show (diffUTCTime c b) ++ "s to construct filter"
