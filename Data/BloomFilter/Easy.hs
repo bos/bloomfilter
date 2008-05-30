@@ -18,6 +18,9 @@ module Data.BloomFilter.Easy
     , easyList
     , elemB
     , lengthB
+    -- ** Example: a spell checker
+    -- $example
+
     -- * Useful defaults for creation
     , suggestSizing
     ) where
@@ -50,12 +53,13 @@ easyList errRate xs =
 --
 -- The false positive rate is the rate at which queries against the
 -- filter should return @True@ when an element is not actually
--- present.
+-- present.  It should be a fraction between 0 and 1, so a 1% false
+-- positive rate is represented by 0.01.
 suggestSizing :: Int            -- ^ expected maximum capacity
               -> Double         -- ^ desired false positive rate (0 < /e/ < 1)
               -> (Int, Int)
 suggestSizing capacity errRate
-    | capacity <= 0 = fatal "invalid capacity"
+    | capacity <= 0                = fatal "invalid capacity"
     | errRate <= 0 || errRate >= 1 = fatal "invalid error rate"
     | otherwise =
     let cap = fromIntegral capacity
@@ -64,3 +68,20 @@ suggestSizing capacity errRate
                      | k <- [1..100]]
     in (nextPowerOfTwo (round bits), round hashes)
   where fatal = error . ("Data.BloomFilter.Util.suggestSizing: " ++)
+
+-- $example
+--
+-- This example reads a dictionary file containing one word per line,
+-- constructs a Bloom filter with a 1% false positive rate, and
+-- spellchecks its standard input.  Like the Unix @spell@ command, it
+-- prints each word that it does not recognize.
+--
+-- @
+--import Data.BloomFilter.Easy (easyList, elemB)
+--
+--main = do
+--  filt <- (easyList 0.01 . words) `fmap` readFile \"/usr/share/dict/words\"
+--  let check word | word `elemB` filt = ""
+--                 | otherwise         = word ++ \"\\n\"
+--  interact (concat . map check . lines)
+-- @

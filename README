@@ -1,0 +1,18 @@
+A fast, space efficient Bloom filter implementation
+---------------------------------------------------
+
+This package provides both mutable and immutable Bloom filter data
+types, along with a family of hash function and an easy-to-use
+interface.
+
+To build:
+
+    runhaskell Setup.lhs configure
+    runhaskell Setup.lhs build
+    runhaskell Setup.lhs install
+
+For examples of usage, see the Haddock documentation and the files in
+the examples directory.
+
+
+Bryan O'Sullivan <bos@serpentine.com>
