@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fglasgow-exts #-}
+{-# LANGUAGE MagicHash #-}
 
 module Data.BloomFilter.Util
     (
@@ -9,12 +9,11 @@ module Data.BloomFilter.Util
 
 import Data.Bits ((.|.))
 import qualified Data.Bits as Bits
-import Foreign.C.Types (CSize)
 import GHC.Base
 import GHC.Word
 
--- | An unboxed, strict pair type.
-data a :* b = {-# UNPACK #-} !a :* {-# UNPACK #-} !b
+-- | A strict pair type.
+data a :* b = !a :* !b
             deriving (Eq, Ord, Show)
 
 -- | Compute the nearest power of two greater to or equal than the
@@ -32,6 +31,9 @@ nextPowerOfTwo n =
         !h = g + 1
     in h
 
+-- | This is a workaround for poor optimisation in GHC 6.8.2.  It
+-- fails to notice constant-width shifts, and adds a test and branch
+-- to every shift.  This imposes about a 10% performance hit.
 class FastShift a where
     shiftL :: a -> Int -> a
     shiftR :: a -> Int -> a
@@ -43,6 +45,13 @@ instance FastShift Word32 where
     {-# INLINE shiftR #-}
     shiftR (W32# x#) (I# i#) = W32# (x# `uncheckedShiftRL#` i#)
 
+instance FastShift Word64 where
+    {-# INLINE shiftL #-}
+    shiftL (W64# x#) (I# i#) = W64# (x# `uncheckedShiftL64#` i#)
+
+    {-# INLINE shiftR #-}
+    shiftR (W64# x#) (I# i#) = W64# (x# `uncheckedShiftRL64#` i#)
+
 instance FastShift Int where
     {-# INLINE shiftL #-}
     shiftL (I# x#) (I# i#) = I# (x# `iShiftL#` i#)
@@ -50,10 +59,9 @@ instance FastShift Int where
     {-# INLINE shiftR #-}
     shiftR (I# x#) (I# i#) = I# (x# `iShiftRA#` i#)
 
-instance FastShift CSize where
-    shiftL = Bits.shiftL
-    shiftR = Bits.shiftR
-
 instance FastShift Integer where
+    {-# INLINE shiftL #-}
     shiftL = Bits.shiftL
+
+    {-# INLINE shiftR #-}
     shiftR = Bits.shiftR

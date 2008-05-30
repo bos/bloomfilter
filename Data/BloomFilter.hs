@@ -44,6 +44,7 @@ import Data.Bits ((.&.), (.|.))
 import Data.BloomFilter.Util (FastShift(..), (:*)(..), nextPowerOfTwo)
 import Data.Word (Word32)
 import qualified Data.ByteString as SB
+import qualified Data.ByteString.Lazy as LB
 
 -- Make sure we're not performing any expensive arithmetic operations.
 import Prelude hiding ((/), (*), div, divMod, mod, rem)
@@ -108,6 +109,7 @@ createB :: (a -> [Hash])        -- ^ family of hash functions to use
         -> Int                  -- ^ number of bits in filter
         -> (forall s. (MBloom s a -> ST s ()))  -- ^ setup function
         -> Bloom a
+{-# INLINE createB #-}
 createB hash numBits body = runST $ do
   mb <- newMB hash numBits
   body mb
@@ -134,6 +136,8 @@ hashesU ub elt = hashIdx (maskB ub) `map` hashB ub elt
 -- membership query for the same value is guaranteed to return @True@.
 insertMB :: MBloom s a -> a -> ST s ()
 {-# SPECIALIZE insertMB :: MBloom s SB.ByteString -> SB.ByteString -> ST s () #-}
+{-# SPECIALIZE insertMB :: MBloom s LB.ByteString -> LB.ByteString -> ST s () #-}
+{-# SPECIALIZE insertMB :: MBloom s String -> String -> ST s () #-}
 insertMB mb elt = do
   let mu = bitArrayMB mb
   forM_ (hashesM mb elt) $ \(word :* bit) -> do
@@ -194,6 +198,7 @@ unfoldB :: (a -> [Hash])        -- ^ family of hash functions to use
         -> (b -> Maybe (a, b))  -- ^ seeding function
         -> b                    -- ^ initial seed
         -> Bloom a
+{-# INLINE unfoldB #-}
 unfoldB hashes numBits f k = createB hashes numBits (loop k)
   where loop j mb = case f j of
                       Just (a, j') -> insertMB mb a >> loop j' mb
@@ -210,8 +215,7 @@ fromListB :: (a -> [Hash])      -- ^ family of hash functions to use
           -> Int                -- ^ number of bits in filter
           -> [a]                -- ^ values to populate with
           -> Bloom a
-{-# SPECIALIZE fromListB :: (SB.ByteString -> [Hash]) -> Int
-                         -> [SB.ByteString] -> Bloom SB.ByteString #-}
+{-# INLINE fromListB #-}
 fromListB hashes numBits list = createB hashes numBits (loop list)
   where loop (x:xs) mb = insertMB mb x >> loop xs mb
         loop _ _       = return ()

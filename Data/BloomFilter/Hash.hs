@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, TypeOperators #-}
+{-# LANGUAGE CPP, ForeignFunctionInterface, TypeOperators #-}
 
 module Data.BloomFilter.Hash
     (
@@ -10,8 +10,6 @@ module Data.BloomFilter.Hash
     , hashTwo
     , hashList
     , hashList2
-    , hashWord2
-    , hashLittle2
     ) where
 
 import Control.Monad (foldM, liftM2)
@@ -28,6 +26,8 @@ import Foreign.Storable (Storable, peek, sizeOf)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString as SB
 import qualified Data.ByteString.Lazy as LB
+
+#include "HsBaseConfig.h"
 
 -- Make sure we're not performing any expensive arithmetic operations.
 -- import Prelude hiding ((/), (*), div, divMod, mod, rem)
@@ -49,6 +49,7 @@ class Hashable a where
     hashIO2 :: a -> CInt -> CInt -> IO (CInt, CInt)
     hashIO2 v s1 s2 = liftM2 (,) (hashIO v s1) (hashIO v s2)
       
+-- | Compute a hash.
 hash :: Hashable a => a -> Word32
 hash = hashS 0x106fc397cf62f64d3
 
@@ -58,23 +59,30 @@ hashS salt k =
     in r
 
 hashS2 :: Hashable a => Word32 -> Word32 -> a -> (Word32 :* Word32)
-{-# SPECIALIZE hashS2 :: Word32 -> Word32 -> SB.ByteString -> (Word32 :* Word32) #-}
+{-# INLINE hashS2 #-}
 hashS2 s1 s2 k =
     unsafePerformIO $ do
       (a, b) <- hashIO2 k (fromIntegral s1) (fromIntegral s2)
       return (fromIntegral a :* fromIntegral b)
 
-hashes :: Hashable a => Int -> a -> [Word32]
+-- | Compute a list of hashes.
+hashes :: Hashable a => Int     -- ^ number of hashes to compute
+       -> a                     -- ^ value to hash
+       -> [Word32]
 hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f631)
     where go (k,s) | k <= 0    = Nothing
                    | otherwise = let s' = hashS s v
                                  in Just (s', (k-1,s'))
 
--- | Compute a list of hash values using Kirsch and Mitzenmacher's
+-- | Compute a list of hashes using Kirsch and Mitzenmacher's
 -- technique.  Any given input is traversed at most twice, regardless
 -- of the number of hashes requested.
-cheapHashes :: Hashable a => Int -> a -> [Word32]
+cheapHashes :: Hashable a => Int -- ^ number of hashes to compute
+            -> a                 -- ^ value to hash
+            -> [Word32]
 {-# SPECIALIZE cheapHashes :: Int -> SB.ByteString -> [Word32] #-}
+{-# SPECIALIZE cheapHashes :: Int -> LB.ByteString -> [Word32] #-}
+{-# SPECIALIZE cheapHashes :: Int -> String -> [Word32] #-}
 cheapHashes k v = [h1 + (h2 `shiftR` i) | i <- [1..fromIntegral k]]
     where (h1 :* h2) = hashS2 0x3f56da2d3ddbb9f631 0xdc61ab0530200d7554 v
 
@@ -144,9 +152,14 @@ instance Hashable Word64 where
     hashIO = hashOne
     hashIO2 = hashTwo
 
+-- | A fast unchecked shift.  Nasty, but otherwise GHC 6.8.2 does a
+-- test and branch on every shift.
+div4 :: CSize -> CSize
+div4 k = fromIntegral ((fromIntegral k :: HTYPE_SIZE_T) `shiftR` 2)
+
 alignedHash :: Ptr a -> CSize -> CInt -> IO CInt
 alignedHash ptr bytes salt
-    | bytes .&. 3 == 0 = hashWord (castPtr ptr) (bytes `shiftR` 2) salt
+    | bytes .&. 3 == 0 = hashWord (castPtr ptr) (div4 bytes) salt
     | otherwise        = hashLittle ptr bytes salt
 
 alignedHash2 :: Ptr a -> CSize -> CInt -> CInt -> IO (CInt, CInt)
@@ -155,17 +168,21 @@ alignedHash2 ptr bytes s1 s2 =
         with s2 $ \p2 ->
             go p1 p2 >> liftM2 (,) (peek p1) (peek p2)
   where go p1 p2
-          | bytes .&. 3 == 0 = hashWord2 (castPtr ptr) (bytes `shiftR` 2) p1 p2
+          | bytes .&. 3 == 0 = hashWord2 (castPtr ptr) (div4 bytes) p1 p2
           | otherwise        = hashLittle2 ptr bytes p1 p2
 
 instance Hashable SB.ByteString where
     hashIO bs salt = SB.useAsCStringLen bs $ \(ptr, len) -> do
                      alignedHash ptr (fromIntegral len) salt
+
+    {-# INLINE hashIO2 #-}
     hashIO2 bs s1 s2 = SB.useAsCStringLen bs $ \(ptr, len) -> do
                        alignedHash2 ptr (fromIntegral len) s1 s2
 
 instance Hashable LB.ByteString where
     hashIO bs salt = foldM (flip hashIO) salt (LB.toChunks bs)
+
+    {-# INLINE hashIO2 #-}
     hashIO2 bs s1 s2 = foldM go (s1, s2) (LB.toChunks bs)
         where go (a, b) s = hashIO2 s a b
 
@@ -200,20 +217,26 @@ instance (Hashable a, Hashable b, Hashable c, Hashable d, Hashable e) =>
 
 instance Storable a => Hashable [a] where
     hashIO = hashList
+
+    {-# INLINE hashIO2 #-}
     hashIO2 = hashList2
 
+-- | Compute a hash of a 'Storable' instance.
 hashOne :: Storable a => a -> CInt -> IO CInt
 hashOne k salt = with k $ \ptr ->
                  alignedHash ptr (fromIntegral (sizeOf k)) salt
 
+-- | Compute two hashes of a 'Storable' instance.
 hashTwo :: Storable a => a -> CInt -> CInt -> IO (CInt, CInt)
 hashTwo k s1 s2 = with k $ \ptr ->
                   alignedHash2 ptr (fromIntegral (sizeOf k)) s1 s2
 
+-- | Compute a hash of a list of 'Storable' instances.
 hashList :: Storable a => [a] -> CInt -> IO CInt
 hashList xs salt = withArrayLen xs $ \len ptr ->
                    alignedHash ptr (fromIntegral (len * sizeOf (head xs))) salt
 
+-- | Compute two hashes of a list of 'Storable' instances.
 hashList2 :: Storable a => [a] -> CInt -> CInt -> IO (CInt, CInt)
 hashList2 xs s1 s2 =
     withArrayLen xs $ \len ptr ->

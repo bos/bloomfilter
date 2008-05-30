@@ -24,6 +24,7 @@ easyList :: (Hashable a)
 {-# SPECIALIZE easyList :: Double -> [String] -> Bloom String #-}
 {-# SPECIALIZE easyList :: Double -> [LB.ByteString] -> Bloom LB.ByteString #-}
 {-# SPECIALIZE easyList :: Double -> [SB.ByteString] -> Bloom SB.ByteString #-}
+{-# INLINE easyList #-}
 easyList errRate xs =
     let capacity = length xs
         (numBits, numHashes) = suggestSizing capacity errRate
