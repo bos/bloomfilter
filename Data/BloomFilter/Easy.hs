@@ -1,11 +1,24 @@
 {-# LANGUAGE PatternSignatures #-}
 
+-- |
+-- Module: Data.BloomFilter.Easy
+-- Copyright: Bryan O'Sullivan
+-- License: BSD3
+--
+-- Maintainer: Bryan O'Sullivan <bos@serpentine.com>
+-- Stability: unstable
+-- Portability: portable
+--
+-- An easy-to-use Bloom filter interface.
+
 module Data.BloomFilter.Easy
     (
-    -- * Easy construction and querying
-      easyList
+    -- * Easy creation and querying
+      Bloom
+    , easyList
     , elemB
     , lengthB
+    -- * Useful defaults for creation
     , suggestSizing
     ) where
 
@@ -16,7 +29,8 @@ import qualified Data.ByteString as SB
 import qualified Data.ByteString.Lazy as LB
 
 -- | Create a Bloom filter with the given false positive rate and
--- members.
+-- members.  The hash functions used are computed by the @cheapHashes@
+-- function from the 'Data.BloomFilter.Hash' module.
 easyList :: (Hashable a)
          => Double              -- ^ desired false positive rate (0 < /e/ < 1)
          -> [a]                 -- ^ values to populate with
@@ -30,7 +44,7 @@ easyList errRate xs =
         (numBits, numHashes) = suggestSizing capacity errRate
     in fromListB (cheapHashes numHashes) numBits xs
 
--- | Suggest the best combination of filter size and number of hash
+-- | Suggest a good combination of filter size and number of hash
 -- functions for a Bloom filter, based on its expected maximum
 -- capacity and a desired false positive rate.
 --

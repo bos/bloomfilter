@@ -1,11 +1,32 @@
 {-# LANGUAGE CPP, ForeignFunctionInterface, TypeOperators #-}
 
+-- |
+-- Module: Data.BloomFilter.Hash
+-- Copyright: Bryan O'Sullivan
+-- License: BSD3
+--
+-- Maintainer: Bryan O'Sullivan <bos@serpentine.com>
+-- Stability: unstable
+-- Portability: portable
+--
+-- Fast hashing of Haskell values.  The hash functions used are Bob
+-- Jenkins's public domain functions, which combine high performance
+-- with excellent mixing properties.  For more details, see
+-- <http://burtleburtle.net/bob/hash/>.
+--
+-- In addition to the usual "one input, one output" hash functions,
+-- this module provides multi-output hash functions, suitable for use
+-- in applications that need multiple hashes, such as Bloom filtering.
+
 module Data.BloomFilter.Hash
     (
+    -- * Basic hash functionality
       Hashable(..)
     , hash
+    -- * Compute a family of hash values
     , hashes
     , cheapHashes
+    -- * Hash functions for 'Storable' instances
     , hashOne
     , hashTwo
     , hashList
@@ -45,8 +66,19 @@ foreign import ccall unsafe "_jenkins_hashlittle2" hashLittle2
     :: Ptr a -> CSize -> Ptr CInt -> Ptr CInt -> IO ()
 
 class Hashable a where
-    hashIO :: a -> CInt -> IO CInt
-    hashIO2 :: a -> CInt -> CInt -> IO (CInt, CInt)
+    -- | Compute a single hash of a value.  The salt value perturbs
+    -- the result.
+    hashIO :: a                 -- ^ value to hash
+           -> CInt              -- ^ salt value
+           -> IO CInt
+
+    -- | Compute two hashes of a value.  The first salt value perturbs
+    -- the first element of the result, and the second salt perturbs
+    -- the second.
+    hashIO2 :: a                -- ^ value to hash
+            -> CInt             -- ^ first salt value
+            -> CInt             -- ^ second salt value
+            -> IO (CInt, CInt)
     hashIO2 v s1 s2 = liftM2 (,) (hashIO v s1) (hashIO v s2)
       
 -- | Compute a hash.
@@ -65,7 +97,8 @@ hashS2 s1 s2 k =
       (a, b) <- hashIO2 k (fromIntegral s1) (fromIntegral s2)
       return (fromIntegral a :* fromIntegral b)
 
--- | Compute a list of hashes.
+-- | Compute a list of hashes.  The value to hash may be inspected as
+-- many times as there are hashes requested.
 hashes :: Hashable a => Int     -- ^ number of hashes to compute
        -> a                     -- ^ value to hash
        -> [Word32]
@@ -74,17 +107,27 @@ hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f631)
                    | otherwise = let s' = hashS s v
                                  in Just (s', (k-1,s'))
 
--- | Compute a list of hashes using Kirsch and Mitzenmacher's
--- technique.  Any given input is traversed at most twice, regardless
--- of the number of hashes requested.
+-- | Compute a list of hashes relatively cheaply.
+-- The value to hash is inspected at most twice, regardless of the
+-- number of hashes requested.
+--
+-- We use a variant of Kirsch and Mitzenmacher's technique from \"Less
+-- Hashing, Same Performance: Building a Better Bloom Filter\",
+-- <http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf>.
+--
+-- Where Kirsch and Mitzenmacher multiply the second hash by a
+-- coefficient, we shift right by the coefficient.  This offers better
+-- performance (as a shift is much cheaper than a multiply), and the
+-- low order bits of the final hash stay well mixed.
 cheapHashes :: Hashable a => Int -- ^ number of hashes to compute
             -> a                 -- ^ value to hash
             -> [Word32]
 {-# SPECIALIZE cheapHashes :: Int -> SB.ByteString -> [Word32] #-}
 {-# SPECIALIZE cheapHashes :: Int -> LB.ByteString -> [Word32] #-}
 {-# SPECIALIZE cheapHashes :: Int -> String -> [Word32] #-}
-cheapHashes k v = [h1 + (h2 `shiftR` i) | i <- [1..fromIntegral k]]
+cheapHashes k v = [h1 + (h2 `shiftR` i) | i <- [0..j]]
     where (h1 :* h2) = hashS2 0x3f56da2d3ddbb9f631 0xdc61ab0530200d7554 v
+          j = fromIntegral k - 1
 
 instance Hashable () where
     hashIO _ salt = return salt

@@ -1,5 +1,5 @@
 hc := ghc
-hcflags := --make -O2 -prof -auto-all
+hcflags := --make -O2
 
 examples := words
 

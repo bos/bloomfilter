@@ -1,7 +1,7 @@
 import Control.Monad (forM_, mapM_)
-import Data.BloomFilter.Easy
+import Data.BloomFilter.Easy (easyList, elemB, lengthB)
 import qualified Data.ByteString.Char8 as B
-import Data.Time.Clock
+import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import System.Environment (getArgs)
 
 main = do
@@ -21,4 +21,3 @@ main = do
     {-# SCC "query" #-} mapM_ print $ filter (not . (`elemB` filt)) words
     d <- getCurrentTime
     putStrLn $ show (diffUTCTime d c) ++ "s to query every element"
-
