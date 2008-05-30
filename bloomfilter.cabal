@@ -12,7 +12,7 @@ stability:       provisional
 build-type:      Simple
 cabal-version:   >= 1.2
 tested-with:     GHC ==6.8.2
-extra-source-files: README index.html cbits/lookup3.c
+extra-source-files: README cbits/lookup3.c
                  examples/Makefile examples/SpellChecker.hs examples/Words.hs
 
 flag bytestring-in-base
