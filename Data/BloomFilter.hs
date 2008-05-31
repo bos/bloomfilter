@@ -17,7 +17,7 @@
 --   a filter, a subsequent membership test will definitely return
 --   'True'.
 --
--- * False negatives /are/ possible.  If an element has not been added
+-- * False positives /are/ possible.  If an element has not been added
 --   to a filter, a membership test /may/ nevertheless indicate that
 --   the element is present.
 --
