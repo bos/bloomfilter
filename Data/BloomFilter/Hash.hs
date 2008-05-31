@@ -123,9 +123,9 @@ hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f6)
                    | otherwise = let s' = hashSalt32 s v
                                  in Just (s', (k-1,s'))
 
--- | Compute a list of 32-bit hashes relatively cheaply.
--- The value to hash is inspected at most twice, regardless of the
--- number of hashes requested.
+-- | Compute a list of 32-bit hashes relatively cheaply.  The value to
+-- hash is inspected at most twice, regardless of the number of hashes
+-- requested.
 --
 -- We use a variant of Kirsch and Mitzenmacher's technique from \"Less
 -- Hashing, Same Performance: Building a Better Bloom Filter\",
