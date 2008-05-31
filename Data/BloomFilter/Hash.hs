@@ -22,27 +22,30 @@ module Data.BloomFilter.Hash
     (
     -- * Basic hash functionality
       Hashable(..)
-    , hash
+    , hash32
+    , hash64
+    , hashSalt32
+    , hashSalt64
     -- * Compute a family of hash values
     , hashes
     , cheapHashes
     -- * Hash functions for 'Storable' instances
-    , hashOne
-    , hashTwo
-    , hashList
-    , hashList2
+    , hashOne32
+    , hashOne64
+    , hashList32
+    , hashList64
     ) where
 
-import Control.Monad (foldM, liftM2)
-import Data.Bits ((.&.), xor)
-import Data.BloomFilter.Util
+import Control.Monad (foldM)
+import Data.Bits ((.&.), (.|.), xor)
+import Data.BloomFilter.Util (FastShift(..))
 import Data.List (unfoldr)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Foreign.C.Types (CInt, CSize)
 import Foreign.Marshal.Array (withArrayLen)
 import Foreign.Marshal.Utils (with)
-import Foreign.Ptr (Ptr, castPtr)
+import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import Foreign.Storable (Storable, peek, sizeOf)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString as SB
@@ -66,48 +69,61 @@ foreign import ccall unsafe "_jenkins_hashlittle2" hashLittle2
     :: Ptr a -> CSize -> Ptr CInt -> Ptr CInt -> IO ()
 
 class Hashable a where
-    -- | Compute a single hash of a value.  The salt value perturbs
+    -- | Compute a 32-bit hash of a value.  The salt value perturbs
     -- the result.
-    hashIO :: a                 -- ^ value to hash
-           -> CInt              -- ^ salt value
-           -> IO CInt
+    hashIO32 :: a               -- ^ value to hash
+             -> Word32          -- ^ salt
+             -> IO Word32
 
-    -- | Compute two hashes of a value.  The first salt value perturbs
-    -- the first element of the result, and the second salt perturbs
-    -- the second.
-    hashIO2 :: a                -- ^ value to hash
-            -> CInt             -- ^ first salt value
-            -> CInt             -- ^ second salt value
-            -> IO (CInt, CInt)
-    hashIO2 v s1 s2 = liftM2 (,) (hashIO v s1) (hashIO v s2)
+    -- | Compute a 64-bit hash of a value.  The first salt value
+    -- perturbs the first element of the result, and the second salt
+    -- perturbs the second.
+    hashIO64 :: a               -- ^ value to hash
+             -> Word64           -- ^ salt
+             -> IO Word64
+    hashIO64 v salt = do
+                   let s1 = fromIntegral (salt `shiftR` 32) .&. maxBound
+                       s2 = fromIntegral salt
+                   h1 <- hashIO32 v s1
+                   h2 <- hashIO32 v s2
+                   return $ (fromIntegral h1 `shiftL` 32) .|. fromIntegral h2
       
--- | Compute a hash.
-hash :: Hashable a => a -> Word32
-hash = hashS 0x106fc397cf62f64d3
+-- | Compute a 32-bit hash.
+hash32 :: Hashable a => a -> Word32
+hash32 = hashSalt32 0x106fc397
 
-hashS :: Hashable a => Word32 -> a -> Word32
-hashS salt k =
-    let !r = fromIntegral . unsafePerformIO $ hashIO k (fromIntegral salt)
+hash64 :: Hashable a => a -> Word64
+hash64 = hashSalt64 0x106fc397cf62f64d3
+
+-- | Compute a salted 32-bit hash.
+hashSalt32 :: Hashable a => Word32  -- ^ salt
+           -> a                 -- ^ value to hash
+           -> Word32
+{-# INLINE hashSalt32 #-}
+hashSalt32 salt k =
+    let !r = unsafePerformIO $ hashIO32 k salt
     in r
 
-hashS2 :: Hashable a => Word32 -> Word32 -> a -> (Word32 :* Word32)
-{-# INLINE hashS2 #-}
-hashS2 s1 s2 k =
-    unsafePerformIO $ do
-      (a, b) <- hashIO2 k (fromIntegral s1) (fromIntegral s2)
-      return (fromIntegral a :* fromIntegral b)
+-- | Compute a salted 64-bit hash.
+hashSalt64 :: Hashable a => Word64  -- ^ salt
+           -> a                 -- ^ value to hash
+           -> Word64
+{-# INLINE hashSalt64 #-}
+hashSalt64 salt k =
+    let !r = unsafePerformIO $ hashIO64 k salt
+    in r
 
--- | Compute a list of hashes.  The value to hash may be inspected as
--- many times as there are hashes requested.
+-- | Compute a list of 32-bit hashes.  The value to hash may be
+-- inspected as many times as there are hashes requested.
 hashes :: Hashable a => Int     -- ^ number of hashes to compute
        -> a                     -- ^ value to hash
        -> [Word32]
-hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f631)
+hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f6)
     where go (k,s) | k <= 0    = Nothing
-                   | otherwise = let s' = hashS s v
+                   | otherwise = let s' = hashSalt32 s v
                                  in Just (s', (k-1,s'))
 
--- | Compute a list of hashes relatively cheaply.
+-- | Compute a list of 32-bit hashes relatively cheaply.
 -- The value to hash is inspected at most twice, regardless of the
 -- number of hashes requested.
 --
@@ -126,161 +142,170 @@ cheapHashes :: Hashable a => Int -- ^ number of hashes to compute
 {-# SPECIALIZE cheapHashes :: Int -> LB.ByteString -> [Word32] #-}
 {-# SPECIALIZE cheapHashes :: Int -> String -> [Word32] #-}
 cheapHashes k v = [h1 + (h2 `shiftR` i) | i <- [0..j]]
-    where (h1 :* h2) = hashS2 0x3f56da2d3ddbb9f631 0xdc61ab0530200d7554 v
+    where h = hashSalt64 0x9150a946c4a8966e v
+          h1 = fromIntegral (h `shiftR` 32) .&. maxBound
+          h2 = fromIntegral h
           j = fromIntegral k - 1
 
 instance Hashable () where
-    hashIO _ salt = return salt
+    hashIO32 _ salt = return salt
 
 instance Hashable Integer where
-    hashIO k salt | k < 0 = hashIO (unfoldr go (-k))
+    hashIO32 k salt | k < 0 = hashIO32 (unfoldr go (-k))
                                    (salt `xor` 0x3ece731e9c1c64f8)
-                  | otherwise = hashIO (unfoldr go k) salt
+                  | otherwise = hashIO32 (unfoldr go k) salt
         where go 0 = Nothing
               go i = Just (fromIntegral i :: Word32, i `shiftR` 32)
 
 instance Hashable Bool where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Ordering where
-    hashIO = hashIO . fromEnum
-    hashIO2 = hashIO2 . fromEnum
+    hashIO32 = hashIO32 . fromEnum
+    hashIO64 = hashIO64 . fromEnum
 
 instance Hashable Char where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Int where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Float where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Double where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Int8 where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Int16 where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Int32 where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Int64 where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Word8 where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Word16 where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Word32 where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 instance Hashable Word64 where
-    hashIO = hashOne
-    hashIO2 = hashTwo
+    hashIO32 = hashOne32
+    hashIO64 = hashOne64
 
 -- | A fast unchecked shift.  Nasty, but otherwise GHC 6.8.2 does a
 -- test and branch on every shift.
 div4 :: CSize -> CSize
 div4 k = fromIntegral ((fromIntegral k :: HTYPE_SIZE_T) `shiftR` 2)
 
-alignedHash :: Ptr a -> CSize -> CInt -> IO CInt
+alignedHash :: Ptr a -> CSize -> Word32 -> IO Word32
 alignedHash ptr bytes salt
-    | bytes .&. 3 == 0 = hashWord (castPtr ptr) (div4 bytes) salt
-    | otherwise        = hashLittle ptr bytes salt
+    | bytes .&. 3 == 0 = hashWord (castPtr ptr) (div4 bytes) salt' >>= cast32
+    | otherwise        = hashLittle ptr bytes salt' >>= cast32
+  where salt' = fromIntegral salt
 
-alignedHash2 :: Ptr a -> CSize -> CInt -> CInt -> IO (CInt, CInt)
-alignedHash2 ptr bytes s1 s2 =
-    with s1 $ \p1 ->
-        with s2 $ \p2 ->
-            go p1 p2 >> liftM2 (,) (peek p1) (peek p2)
+cast32 :: CInt -> IO Word32
+cast32 = return . fromIntegral
+
+alignedHash2 :: Ptr a -> CSize -> Word64 -> IO Word64
+alignedHash2 ptr bytes salt =
+    with (fromIntegral salt) $ \sp -> do
+      let p1 = castPtr sp
+          p2 = castPtr sp `plusPtr` 4
+      go p1 p2
+      peek sp
   where go p1 p2
           | bytes .&. 3 == 0 = hashWord2 (castPtr ptr) (div4 bytes) p1 p2
           | otherwise        = hashLittle2 ptr bytes p1 p2
 
 instance Hashable SB.ByteString where
-    hashIO bs salt = SB.useAsCStringLen bs $ \(ptr, len) -> do
+    hashIO32 bs salt = SB.useAsCStringLen bs $ \(ptr, len) -> do
                      alignedHash ptr (fromIntegral len) salt
 
-    {-# INLINE hashIO2 #-}
-    hashIO2 bs s1 s2 = SB.useAsCStringLen bs $ \(ptr, len) -> do
-                       alignedHash2 ptr (fromIntegral len) s1 s2
+    {-# INLINE hashIO64 #-}
+    hashIO64 bs salt = SB.useAsCStringLen bs $ \(ptr, len) -> do
+                      alignedHash2 ptr (fromIntegral len) salt
 
 instance Hashable LB.ByteString where
-    hashIO bs salt = foldM (flip hashIO) salt (LB.toChunks bs)
+    hashIO32 bs salt = foldM (flip hashIO32) salt (LB.toChunks bs)
 
-    {-# INLINE hashIO2 #-}
-    hashIO2 bs s1 s2 = foldM go (s1, s2) (LB.toChunks bs)
-        where go (a, b) s = hashIO2 s a b
+    {-# INLINE hashIO64 #-}
+    hashIO64 bs salt = foldM go salt (LB.toChunks bs)
+        where go a s = hashIO64 s a
 
 instance Hashable a => Hashable (Maybe a) where
-    hashIO Nothing salt = return salt
-    hashIO (Just k) salt = hashIO k salt
-    hashIO2 Nothing s1 s2 = return (s1, s2)
-    hashIO2 (Just k) s1 s2 = hashIO2 k s1 s2
+    hashIO32 Nothing salt = return salt
+    hashIO32 (Just k) salt = hashIO32 k salt
+    hashIO64 Nothing salt = return salt
+    hashIO64 (Just k) salt = hashIO64 k salt
 
 instance (Hashable a, Hashable b) => Hashable (Either a b) where
-    hashIO (Left a) salt = hashIO a salt
-    hashIO (Right b) salt = hashIO b (salt + 1)
-    hashIO2 (Left a) s1 s2 = hashIO2 a s1 s2
-    hashIO2 (Right b) s1 s2 = hashIO2 b (s1 + 1) (s2 + 1)
+    hashIO32 (Left a) salt = hashIO32 a salt
+    hashIO32 (Right b) salt = hashIO32 b (salt + 1)
+    hashIO64 (Left a) salt = hashIO64 a salt
+    hashIO64 (Right b) salt = hashIO64 b (salt + 1)
 
 instance (Hashable a, Hashable b) => Hashable (a, b) where
-    hashIO (a,b) salt = hashIO a salt >>= hashIO b
-    hashIO2 (a,b) s1 s2 = hashIO2 a s1 s2 >>= uncurry (hashIO2 b)
+    hashIO32 (a,b) salt = hashIO32 a salt >>= hashIO32 b
+    hashIO64 (a,b) salt = hashIO64 a salt >>= hashIO64 b
 
 instance (Hashable a, Hashable b, Hashable c) => Hashable (a, b, c) where
-    hashIO (a,b,c) salt = hashIO a salt >>= hashIO b >>= hashIO c
+    hashIO32 (a,b,c) salt = hashIO32 a salt >>= hashIO32 b >>= hashIO32 c
 
 instance (Hashable a, Hashable b, Hashable c, Hashable d) =>
     Hashable (a, b, c, d) where
-    hashIO (a,b,c,d) salt =
-        hashIO a salt >>= hashIO b >>= hashIO c >>= hashIO d
+    hashIO32 (a,b,c,d) salt =
+        hashIO32 a salt >>= hashIO32 b >>= hashIO32 c >>= hashIO32 d
 
 instance (Hashable a, Hashable b, Hashable c, Hashable d, Hashable e) =>
     Hashable (a, b, c, d, e) where
-    hashIO (a,b,c,d,e) salt =
-        hashIO a salt >>= hashIO b >>= hashIO c >>= hashIO d >>= hashIO e
+    hashIO32 (a,b,c,d,e) salt =
+        hashIO32 a salt >>= hashIO32 b >>= hashIO32 c >>= hashIO32 d >>= hashIO32 e
 
 instance Storable a => Hashable [a] where
-    hashIO = hashList
+    hashIO32 = hashList32
 
-    {-# INLINE hashIO2 #-}
-    hashIO2 = hashList2
+    {-# INLINE hashIO64 #-}
+    hashIO64 = hashList64
 
--- | Compute a hash of a 'Storable' instance.
-hashOne :: Storable a => a -> CInt -> IO CInt
-hashOne k salt = with k $ \ptr ->
+-- | Compute a 32-bit hash of a 'Storable' instance.
+hashOne32 :: Storable a => a -> Word32 -> IO Word32
+hashOne32 k salt = with k $ \ptr ->
                  alignedHash ptr (fromIntegral (sizeOf k)) salt
 
--- | Compute two hashes of a 'Storable' instance.
-hashTwo :: Storable a => a -> CInt -> CInt -> IO (CInt, CInt)
-hashTwo k s1 s2 = with k $ \ptr ->
-                  alignedHash2 ptr (fromIntegral (sizeOf k)) s1 s2
+-- | Compute a 64-bit hash of a 'Storable' instance.
+hashOne64 :: Storable a => a -> Word64 -> IO Word64
+hashOne64 k salt = with k $ \ptr ->
+                   alignedHash2 ptr (fromIntegral (sizeOf k)) salt
 
--- | Compute a hash of a list of 'Storable' instances.
-hashList :: Storable a => [a] -> CInt -> IO CInt
-hashList xs salt = withArrayLen xs $ \len ptr ->
-                   alignedHash ptr (fromIntegral (len * sizeOf (head xs))) salt
-
--- | Compute two hashes of a list of 'Storable' instances.
-hashList2 :: Storable a => [a] -> CInt -> CInt -> IO (CInt, CInt)
-hashList2 xs s1 s2 =
+-- | Compute a 32-bit hash of a list of 'Storable' instances.
+hashList32 :: Storable a => [a] -> Word32 -> IO Word32
+hashList32 xs salt =
     withArrayLen xs $ \len ptr ->
-    alignedHash2 ptr (fromIntegral (len * sizeOf (head xs))) s1 s2
+        alignedHash ptr (fromIntegral (len * sizeOf (head xs))) salt
+
+-- | Compute a 64-bit hash of a list of 'Storable' instances.
+hashList64 :: Storable a => [a] -> Word64 -> IO Word64
+hashList64 xs salt =
+    withArrayLen xs $ \len ptr ->
+        alignedHash2 ptr (fromIntegral (len * sizeOf (head xs))) salt
