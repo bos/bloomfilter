@@ -35,7 +35,8 @@ library
   exposed-modules: Data.BloomFilter
                    Data.BloomFilter.Easy
                    Data.BloomFilter.Hash
-  other-modules:   Data.BloomFilter.Util
+  other-modules:   Data.BloomFilter.Array
+                   Data.BloomFilter.Util
   c-sources:       cbits/lookup3.c
   ghc-options:     -O2 -Wall -fliberate-case-threshold=1000
 

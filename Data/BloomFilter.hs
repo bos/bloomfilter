@@ -1,4 +1,5 @@
 {-# LANGUAGE Rank2Types, TypeOperators #-}
+{-# OPTIONS_GHC -fglasgow-exts #-}
 
 -- |
 -- Module: Data.BloomFilter
@@ -79,9 +80,10 @@ module Data.BloomFilter
 import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST, runST)
 import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
-import Data.Array.ST (STUArray, newArray, thaw, unsafeFreeze)
+import Data.Array.ST (STUArray, thaw, unsafeFreeze)
 import Data.Array.Unboxed (UArray)
 import Data.Bits ((.&.), (.|.))
+import Data.BloomFilter.Array (newArray)
 import Data.BloomFilter.Util (FastShift(..), (:*)(..), nextPowerOfTwo)
 import Data.Word (Word32)
 import qualified Data.ByteString as SB
@@ -134,11 +136,12 @@ instance Show (Bloom a) where
 newMB :: (a -> [Hash])          -- ^ family of hash functions to use
       -> Int                    -- ^ number of bits in filter
       -> ST s (MBloom s a)
-newMB hash numBits = MB hash shift mask `liftM` newArray (0, numElems - 1) 0
+newMB hash numBits = MB hash shift mask `liftM` newArray numElems numBytes
   where twoBits | numBits < 1 = 1
                 | isPowerOfTwo numBits = numBits
                 | otherwise = nextPowerOfTwo numBits
         numElems = max 2 (twoBits `shiftR` logBitsInHash)
+        numBytes = numElems `shiftL` logBytesInHash
         trueBits = numElems `shiftL` logBitsInHash
         shift = logPower2 trueBits
         mask = trueBits - 1
@@ -146,6 +149,9 @@ newMB hash numBits = MB hash shift mask `liftM` newArray (0, numElems - 1) 0
 
 logBitsInHash :: Int
 logBitsInHash = 5 -- logPower2 bitsInHash
+
+logBytesInHash :: Int
+logBytesInHash = 2 -- logPower2 (sizeOf (undefined :: Hash))
 
 -- | Create an immutable Bloom filter, using the given setup function
 -- which executes in the 'ST' monad.
