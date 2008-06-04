@@ -1,5 +1,5 @@
 name:            bloomfilter
-version:         1.1.0
+version:         1.2.0
 license:         BSD3
 license-file:    LICENSE
 author:          Bryan O'Sullivan <bos@serpentine.com>
@@ -39,5 +39,4 @@ library
                    Data.BloomFilter.Util
   c-sources:       cbits/lookup3.c
   ghc-options:     -O2 -Wall -fliberate-case-threshold=1000
-
   cc-options:      -O3

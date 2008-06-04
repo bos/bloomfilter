@@ -11,7 +11,7 @@ import System.Environment (getArgs)
 import System.IO (BufferMode(..), hSetBuffering, stdout)
 import Test.QuickCheck (Testable)
 
-import QCSupport
+import QCSupport (P(..), limCheck)
 
 prop_pai :: (Hashable a) => a -> (a, P) -> Bool
 prop_pai _ (xs, P q) = let bf = easyList q [xs] in xs `elemB` bf

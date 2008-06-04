@@ -44,15 +44,25 @@ module Data.BloomFilter
     -- * Immutable Bloom filters
     -- ** Creation
     , unfoldB
+
     , fromListB
-    , createB
+    , emptyB
+    , singletonB
 
     -- ** Accessors
     , lengthB
     , elemB
     , notElemB
 
+    -- ** Mutators
+    , insertB
+    , insertListB
+
     -- * Mutable Bloom filters
+    -- ** Immutability wrappers
+    , createB
+    , modifyB
+
     -- ** Creation
     , newMB
     , unsafeFreezeMB
@@ -177,6 +187,27 @@ createB hash numBits body = runST $ do
   body mb
   unsafeFreezeMB mb
 
+-- | Create an empty Bloom filter.
+--
+-- This function is subject to fusion with 'insertB'
+-- and 'insertListB'.
+emptyB :: (a -> [Hash])         -- ^ family of hash functions to use
+       -> Int                   -- ^ number of bits in filter
+       -> Bloom a
+{-# INLINE [1] emptyB #-}
+emptyB hash numBits = createB hash numBits (\_ -> return ())
+
+-- | Create a Bloom filter with a single element.
+--
+-- This function is subject to fusion with 'insertB'
+-- and 'insertListB'.
+singletonB :: (a -> [Hash])     -- ^ family of hash functions to use
+           -> Int               -- ^ number of bits in filter
+           -> a                 -- ^ element to insert
+           -> Bloom a
+{-# INLINE [1] singletonB #-}
+singletonB hash numBits elt = createB hash numBits (\mb -> insertMB mb elt)
+
 -- | Given a filter's mask and a hash value, compute an offset into
 -- a word array and a bit offset within that word.
 hashIdx :: Int -> Word32 -> (Int :* Int)
@@ -226,6 +257,63 @@ elemB :: a -> Bloom a -> Bool
 elemB elt ub = all test (hashesU ub elt)
   where test (off :* bit) = (bitArrayB ub `unsafeAt` off) .&. (1 `shiftL` bit) /= 0
           
+modifyB :: (forall s. (MBloom s a -> ST s z))  -- ^ mutation function (result is discarded)
+        -> Bloom a
+        -> Bloom a
+{-# INLINE modifyB #-}
+modifyB body ub = runST $ do
+  mb <- thawMB ub
+  body mb
+  unsafeFreezeMB mb
+
+-- | Create a new Bloom filter from an existing one, with the given
+-- member added.
+--
+-- This function may be expensive, as it is likely to cause the
+-- underlying bit array to be copied.
+--
+-- Repeated applications of this function with itself are subject to
+-- fusion.
+insertB :: a -> Bloom a -> Bloom a
+{-# NOINLINE insertB #-}
+insertB elt = modifyB (flip insertMB elt)
+
+-- | Create a new Bloom filter from an existing one, with the given
+-- members added.
+--
+-- This function may be expensive, as it is likely to cause the
+-- underlying bit array to be copied.
+--
+-- Repeated applications of this function with itself are subject to
+-- fusion.
+insertListB :: [a] -> Bloom a -> Bloom a
+{-# NOINLINE insertListB #-}
+insertListB elts = modifyB $ \mb -> mapM_ (insertMB mb) elts
+
+{-# RULES "Bloom insertB . insertB" forall a b u.
+    insertB b (insertB a u) = insertListB [a,b] u
+  #-}
+
+{-# RULES "Bloom insertListB . insertB" forall x xs u.
+    insertListB xs (insertB x u) = insertListB (x:xs) u
+  #-}
+
+{-# RULES "Bloom insertB . insertListB" forall x xs u.
+    insertB x (insertListB xs u) = insertListB (x:xs) u
+  #-}
+
+{-# RULES "Bloom insertListB . insertListB" forall xs ys u.
+    insertListB xs (insertListB ys u) = insertListB (xs++ys) u
+  #-}
+
+{-# RULES "Bloom insertListB . emptyB" forall h n xs.
+    insertListB xs (emptyB h n) = fromListB h n xs
+  #-}
+
+{-# RULES "Bloom insertListB . singletonB" forall h n x xs.
+    insertListB xs (singletonB h n x) = fromListB h n (x:xs)
+  #-}
+
 -- | Query an immutable Bloom filter for non-membership.  If the value
 -- /is/ present, return @False@.  If the value is not present, there
 -- is /still/ some possibility that @False@ will be returned.
@@ -291,10 +379,12 @@ fromListB :: (a -> [Hash])      -- ^ family of hash functions to use
           -> Int                -- ^ number of bits in filter
           -> [a]                -- ^ values to populate with
           -> Bloom a
-{-# INLINE fromListB #-}
-fromListB hashes numBits list = createB hashes numBits (loop list)
-  where loop (x:xs) mb = insertMB mb x >> loop xs mb
-        loop _ _       = return ()
+{-# INLINE [1] fromListB #-}
+fromListB hashes numBits list = createB hashes numBits $ forM_ list . insertMB
+
+{-# RULES "Bloom insertListB . fromListB" forall h n xs ys.
+    insertListB xs (fromListB h n ys) = fromListB h n (xs ++ ys)
+  #-}
 
 {-
 -- This is a simpler definition, but GHC doesn't inline the unfold
