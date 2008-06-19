@@ -1,5 +1,5 @@
 name:            bloomfilter
-version:         1.2.0
+version:         1.2.1
 license:         BSD3
 license-file:    LICENSE
 author:          Bryan O'Sullivan <bos@serpentine.com>
