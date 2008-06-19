@@ -25,7 +25,7 @@ newtype P = P { unP :: Double }
 
 instance Arbitrary P where
     arbitrary = choose (epsilon, 1 - epsilon)
-        where epsilon = 1e-4 :: P
+        where epsilon = 1e-6 :: P
     coarbitrary = coarbitrary . decodeFloat . unP
 
 instance Arbitrary Ordering where

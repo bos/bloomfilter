@@ -68,7 +68,7 @@ suggestSizing capacity errRate
         (bits :: Double, hashes :: Double) =
             minimum [((-k) * cap / log (1 - (errRate ** (1 / k))), k)
                      | k <- [1..100]]
-    in (nextPowerOfTwo (round bits), round hashes)
+    in (nextPowerOfTwo (ceiling bits), truncate hashes)
   where fatal = error . ("Data.BloomFilter.Util.suggestSizing: " ++)
 
 -- $example
