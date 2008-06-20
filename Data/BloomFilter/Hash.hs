@@ -56,16 +56,16 @@ import qualified Data.ByteString.Lazy as LB
 -- Make sure we're not performing any expensive arithmetic operations.
 -- import Prelude hiding ((/), (*), div, divMod, mod, rem)
 
-foreign import ccall unsafe "_jenkins_hashword" hashWord
+foreign import ccall unsafe "lookup3.h _jenkins_hashword" hashWord
     :: Ptr CInt -> CSize -> CInt -> IO CInt
 
-foreign import ccall unsafe "_jenkins_hashword2" hashWord2
+foreign import ccall unsafe "lookup3.h _jenkins_hashword2" hashWord2
     :: Ptr CInt -> CSize -> Ptr CInt -> Ptr CInt -> IO ()
 
-foreign import ccall unsafe "_jenkins_hashlittle" hashLittle
+foreign import ccall unsafe "lookup3.h _jenkins_hashlittle" hashLittle
     :: Ptr a -> CSize -> CInt -> IO CInt
 
-foreign import ccall unsafe "_jenkins_hashlittle2" hashLittle2
+foreign import ccall unsafe "lookup3.h _jenkins_hashlittle2" hashLittle2
     :: Ptr a -> CSize -> Ptr CInt -> Ptr CInt -> IO ()
 
 class Hashable a where

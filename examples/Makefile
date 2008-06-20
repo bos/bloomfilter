@@ -1,5 +1,5 @@
 hc := ghc
-hcflags := --make -O2
+hcflags := --make -O2 -fvia-C -optc-O2
 
 examples := words spellchecker
 

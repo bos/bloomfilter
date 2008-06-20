@@ -12,7 +12,7 @@ stability:       provisional
 build-type:      Simple
 cabal-version:   >= 1.2
 tested-with:     GHC ==6.8.2
-extra-source-files: README cbits/lookup3.c
+extra-source-files: README cbits/lookup3.c cbits/lookup3.h
                  examples/Makefile examples/SpellChecker.hs examples/Words.hs
 
 flag bytestring-in-base
@@ -38,6 +38,9 @@ library
   other-modules:    Data.BloomFilter.Array
                     Data.BloomFilter.Util
   c-sources:        cbits/lookup3.c
-  ghc-options:      -O2 -Wall -fliberate-case-threshold=1000
+  ghc-options:      -O2 -Wall -fvia-C -optc-O3
   ghc-prof-options: -auto-all
   cc-options:       -O3
+  include-dirs:     cbits
+  includes:         lookup3.h
+  install-includes: lookup3.h
