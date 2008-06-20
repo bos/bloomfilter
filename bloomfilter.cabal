@@ -32,11 +32,12 @@ library
   else
     build-depends:   base < 3.0
 
-  exposed-modules: Data.BloomFilter
-                   Data.BloomFilter.Easy
-                   Data.BloomFilter.Hash
-  other-modules:   Data.BloomFilter.Array
-                   Data.BloomFilter.Util
-  c-sources:       cbits/lookup3.c
-  ghc-options:     -O2 -Wall -fliberate-case-threshold=1000
-  cc-options:      -O3
+  exposed-modules:  Data.BloomFilter
+                    Data.BloomFilter.Easy
+                    Data.BloomFilter.Hash
+  other-modules:    Data.BloomFilter.Array
+                    Data.BloomFilter.Util
+  c-sources:        cbits/lookup3.c
+  ghc-options:      -O2 -Wall -fliberate-case-threshold=1000
+  ghc-prof-options: -auto-all
+  cc-options:       -O3
