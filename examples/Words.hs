@@ -18,7 +18,7 @@ aggressive fpr xs
           k = 3
       in fromListB (cheapHashes (numHashes - k)) (size * k) xs
 
-testFunction = aggressive
+testFunction = conservative
 
 main = do
   args <- getArgs
