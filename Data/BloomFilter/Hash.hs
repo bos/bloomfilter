@@ -49,6 +49,7 @@ import Foreign.Ptr (Ptr, castPtr, plusPtr)
 import Foreign.Storable (Storable, peek, sizeOf)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString as SB
+import qualified Data.ByteString.Lazy.Internal as LB
 import qualified Data.ByteString.Lazy as LB
 
 #include "HsBaseConfig.h"
@@ -142,12 +143,12 @@ cheapHashes :: Hashable a => Int -- ^ number of hashes to compute
 {-# SPECIALIZE cheapHashes :: Int -> LB.ByteString -> [Word32] #-}
 {-# SPECIALIZE cheapHashes :: Int -> String -> [Word32] #-}
 cheapHashes k v = go 0
-    where h = hashSalt64 0x9150a946c4a8966e v
+    where go i | i == j = []
+               | otherwise = h1 + (h2 `shiftR` i) : go (i + 1)
           !h1 = fromIntegral (h `shiftR` 32) .&. maxBound
           !h2 = fromIntegral h
+          h = hashSalt64 0x9150a946c4a8966e v
           j = fromIntegral k - 1
-          go i | i == j = []
-               | otherwise = h1 + (h2 `shiftR` i) : go (i + 1)
 
 instance Hashable () where
     hashIO32 _ salt = return salt
@@ -248,11 +249,18 @@ instance Hashable SB.ByteString where
     hashIO64 bs salt = SB.useAsCStringLen bs $ \(ptr, len) -> do
                       alignedHash2 ptr (fromIntegral len) salt
 
+rechunk :: LB.ByteString -> [SB.ByteString]
+rechunk s | LB.null s = []
+          | otherwise = let (pre,suf) = LB.splitAt chunkSize s
+                        in  repack pre : rechunk suf
+           where repack = SB.concat . LB.toChunks
+                 chunkSize = fromIntegral LB.defaultChunkSize
+
 instance Hashable LB.ByteString where
-    hashIO32 bs salt = foldM (flip hashIO32) salt (LB.toChunks bs)
+    hashIO32 bs salt = foldM (flip hashIO32) salt (rechunk bs)
 
     {-# INLINE hashIO64 #-}
-    hashIO64 bs salt = foldM go salt (LB.toChunks bs)
+    hashIO64 bs salt = foldM go salt (rechunk bs)
         where go a s = hashIO64 s a
 
 instance Hashable a => Hashable (Maybe a) where
