@@ -27,7 +27,7 @@ module Data.BloomFilter.Easy
     , suggestSizing
     ) where
 
-import Data.BloomFilter (Bloom, elemB, fromListB, lengthB, notElemB)
+import Data.BloomFilter (Bloom, elemB, emptyB, fromListB, lengthB, notElemB)
 import Data.BloomFilter.Hash (Hashable, cheapHashes)
 import Data.BloomFilter.Util (nextPowerOfTwo)
 import qualified Data.ByteString as SB
@@ -44,10 +44,11 @@ easyList :: (Hashable a)
 {-# SPECIALIZE easyList :: Double -> [LB.ByteString] -> Bloom LB.ByteString #-}
 {-# SPECIALIZE easyList :: Double -> [SB.ByteString] -> Bloom SB.ByteString #-}
 {-# INLINE easyList #-}
-easyList errRate xs =
-    let capacity = length xs
-        (numBits, numHashes) = suggestSizing capacity errRate
-    in fromListB (cheapHashes numHashes) numBits xs
+easyList errRate xs = fromListB (cheapHashes numHashes) numBits xs
+    where capacity = length xs
+          (numBits, numHashes)
+              | capacity > 0 = suggestSizing capacity errRate
+              | otherwise    = (1, 1)
 
 -- | Suggest a good combination of filter size and number of hash
 -- functions for a Bloom filter, based on its expected maximum
