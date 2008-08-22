@@ -27,7 +27,7 @@ module Data.BloomFilter.Easy
     , suggestSizing
     ) where
 
-import Data.BloomFilter (Bloom, elemB, emptyB, fromListB, lengthB, notElemB)
+import Data.BloomFilter (Bloom, elemB, fromListB, lengthB, notElemB)
 import Data.BloomFilter.Hash (Hashable, cheapHashes)
 import Data.BloomFilter.Util (nextPowerOfTwo)
 import qualified Data.ByteString as SB
@@ -43,7 +43,6 @@ easyList :: (Hashable a)
 {-# SPECIALIZE easyList :: Double -> [String] -> Bloom String #-}
 {-# SPECIALIZE easyList :: Double -> [LB.ByteString] -> Bloom LB.ByteString #-}
 {-# SPECIALIZE easyList :: Double -> [SB.ByteString] -> Bloom SB.ByteString #-}
-{-# INLINE easyList #-}
 easyList errRate xs = fromListB (cheapHashes numHashes) numBits xs
     where capacity = length xs
           (numBits, numHashes)

@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, TypeOperators #-}
+{-# LANGUAGE BangPatterns, Rank2Types, TypeOperators #-}
 {-# OPTIONS_GHC -fglasgow-exts #-}
 
 -- |
@@ -89,6 +89,7 @@ module Data.BloomFilter
 
 import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST, runST)
+import Control.Parallel.Strategies (NFData(..))
 import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
 import Data.Array.ST (STUArray, thaw, unsafeFreeze)
 import Data.Array.Unboxed (UArray)
@@ -135,6 +136,9 @@ instance Show (MBloom s a) where
 
 instance Show (Bloom a) where
     show ub = "Bloom { " ++ show (lengthB ub) ++ " bits } "
+
+instance NFData (Bloom a) where
+    rnf !_ = ()
 
 -- | Create a new mutable Bloom filter.  For efficiency, the number of
 -- bits used may be larger than the number requested.  It is always

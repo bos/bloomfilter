@@ -28,7 +28,7 @@ library
     build-depends: base < 2.0 || >= 3, bytestring >= 0.9
 
   if flag(split-base)
-    build-depends:   base >= 3.0, containers, array
+    build-depends:   base >= 3.0, containers, array, parallel
   else
     build-depends:   base < 3.0
 
