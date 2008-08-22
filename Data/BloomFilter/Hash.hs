@@ -242,26 +242,28 @@ alignedHash2 ptr bytes salt =
     with (fromIntegral salt) $ \sp -> do
       let p1 = castPtr sp
           p2 = castPtr sp `plusPtr` 4
-      go p1 p2
+      doubleHash ptr bytes p1 p2
       peek sp
-  where go p1 p2
+
+doubleHash :: Ptr a -> CSize -> Ptr CInt -> Ptr CInt -> IO ()
+doubleHash ptr bytes p1 p2
           | bytes .&. 3 == 0 = hashWord2 (castPtr ptr) (div4 bytes) p1 p2
           | otherwise        = hashLittle2 ptr bytes p1 p2
 
 instance Hashable SB.ByteString where
     hashIO32 bs salt = SB.useAsCStringLen bs $ \(ptr, len) -> do
-                     alignedHash ptr (fromIntegral len) salt
+                       alignedHash ptr (fromIntegral len) salt
 
     {-# INLINE hashIO64 #-}
     hashIO64 bs salt = SB.useAsCStringLen bs $ \(ptr, len) -> do
-                      alignedHash2 ptr (fromIntegral len) salt
+                       alignedHash2 ptr (fromIntegral len) salt
 
 rechunk :: LB.ByteString -> [SB.ByteString]
 rechunk s | LB.null s = []
           | otherwise = let (pre,suf) = LB.splitAt chunkSize s
                         in  repack pre : rechunk suf
-           where repack = SB.concat . LB.toChunks
-                 chunkSize = fromIntegral LB.defaultChunkSize
+    where repack = SB.concat . LB.toChunks
+          chunkSize = fromIntegral LB.defaultChunkSize
 
 instance Hashable LB.ByteString where
     hashIO32 bs salt = foldM (flip hashIO32) salt (rechunk bs)
