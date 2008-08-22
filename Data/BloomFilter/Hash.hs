@@ -269,8 +269,7 @@ instance Hashable LB.ByteString where
     hashIO32 bs salt = foldM (flip hashIO32) salt (rechunk bs)
 
     {-# INLINE hashIO64 #-}
-    hashIO64 bs salt = foldM go salt (rechunk bs)
-        where go a s = hashIO64 s a
+    hashIO64 bs salt = hashStrictStrings (rechunk bs) salt
 
 instance Hashable a => Hashable (Maybe a) where
     hashIO32 Nothing salt = return salt
@@ -328,3 +327,15 @@ hashList64 :: Storable a => [a] -> Word64 -> IO Word64
 hashList64 xs salt =
     withArrayLen xs $ \len ptr ->
         alignedHash2 ptr (fromIntegral (len * sizeOf (head xs))) salt
+
+-- | A more efficient way to hash a list of strict ByteStrings.  Used
+-- by the lazy ByteString hash code.
+hashStrictStrings :: [SB.ByteString] -> Word64 -> IO Word64
+hashStrictStrings xs salt =
+    with (fromIntegral salt) $ \sp -> do
+      let p1 = castPtr sp
+          p2 = castPtr sp `plusPtr` 4
+          go x = SB.useAsCStringLen x $ \(ptr,len) ->
+                 doubleHash ptr (fromIntegral len) p1 p2
+      mapM_ go xs
+      peek sp
