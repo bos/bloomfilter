@@ -2,11 +2,13 @@
 -- builds a Bloom filter from a list of words, one per line, and
 -- queries it exhaustively.
 
+module Main () where
+
 import Control.Monad (forM_, mapM_)
 import Data.BloomFilter (Bloom, fromListB, elemB, lengthB)
 import Data.BloomFilter.Hash (cheapHashes)
 import Data.BloomFilter.Easy (easyList, suggestSizing)
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import System.Environment (getArgs)
 
