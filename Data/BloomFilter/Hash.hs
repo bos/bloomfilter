@@ -43,10 +43,10 @@ import Data.List (unfoldr)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Foreign.C.Types (CInt, CSize)
+import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (withArrayLen)
-import Foreign.Marshal.Utils (with)
 import Foreign.Ptr (Ptr, castPtr, plusPtr)
-import Foreign.Storable (Storable, peek, sizeOf)
+import Foreign.Storable (Storable, peek, poke, sizeOf)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Data.ByteString as SB
 import qualified Data.ByteString.Lazy.Internal as LB
@@ -229,6 +229,13 @@ alignedHash ptr bytes salt
 
 cast32 :: CInt -> IO Word32
 cast32 = return . fromIntegral
+
+-- Inlined from Foreign.Marshal.Utils, for performance reasons.
+with :: Storable a => a -> (Ptr a -> IO b) -> IO b
+with val f  =
+  alloca $ \ptr -> do
+    poke ptr val
+    f ptr
 
 alignedHash2 :: Ptr a -> CSize -> Word64 -> IO Word64
 alignedHash2 ptr bytes salt =
