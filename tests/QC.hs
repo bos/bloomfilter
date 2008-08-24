@@ -2,14 +2,14 @@ module Main where
 
 import Control.Monad (forM_)
 import Data.BloomFilter.Easy (easyList, elemB)
-import Data.BloomFilter.Hash (Hashable(..))
+import Data.BloomFilter.Hash (Hashable(..), hash64)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy.Char8 as LB
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
 import System.Environment (getArgs)
 import System.IO (BufferMode(..), hSetBuffering, stdout)
-import Test.QuickCheck (Testable)
+import Test.QuickCheck (Property, Testable, (==>), choose, forAll)
 
 import QCSupport (P(..), limCheck)
 
@@ -44,7 +44,28 @@ tests = [
          (undefined :: (Double,Int,SB.ByteString))
  , p "(Ordering,(Char,Int),LB.ByteString,Word64)" $ prop_pai
          (undefined :: (Ordering,(Char,Int),LB.ByteString,Word64))
+ , (flip limCheck prop_rechunked_eq, "prop_rechunked_eq")
  ]
+
+rechunk :: Int64 -> LB.ByteString -> LB.ByteString
+rechunk 0 xs = xs
+rechunk k xs = LB.fromChunks (go xs)
+    where go s | LB.null s = []
+               | otherwise = let (pre,suf) = LB.splitAt k s
+                             in  repack pre : go suf
+          repack = SB.concat . LB.toChunks
+
+-- Ensure that a property over a lazy ByteString holds if we change
+-- the chunk boundaries.
+prop_rechunked :: Eq a => (LB.ByteString -> a)
+               -> LB.ByteString -> Property
+prop_rechunked f s =
+    let l = LB.length s
+    in l > 0 ==> forAll (choose (1,l-1)) $ \k ->
+        let n = k `mod` l
+        in n > 0 ==> f s == f (rechunk n s)
+
+prop_rechunked_eq = prop_rechunked hash64
 
 main :: IO ()
 main = do

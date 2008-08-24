@@ -110,7 +110,8 @@ instance Arbitrary Word64 where
     coarbitrary = integralCoarbitrary
 
 instance Arbitrary LB.ByteString where
-    arbitrary = LB.pack `fmap` arbitrary
+    arbitrary = sized $ \n -> resize (round (sqrt (toEnum n :: Double)))
+                ((LB.fromChunks . filter (not . SB.null)) `fmap` arbitrary)
     coarbitrary = coarbitrary . LB.unpack
 
 instance Arbitrary SB.ByteString where
