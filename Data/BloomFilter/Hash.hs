@@ -42,12 +42,15 @@ import Data.BloomFilter.Util (FastShift(..))
 import Data.List (unfoldr)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
+import Foreign.C.String (CString)
 import Foreign.C.Types (CInt, CSize)
+import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Marshal.Alloc (alloca)
-import Foreign.Marshal.Array (withArrayLen)
-import Foreign.Ptr (Ptr, castPtr, plusPtr)
+import Foreign.Marshal.Array (allocaArray, withArrayLen)
+import Foreign.Ptr (Ptr, castPtr, nullPtr, plusPtr)
 import Foreign.Storable (Storable, peek, poke, sizeOf)
 import System.IO.Unsafe (unsafePerformIO)
+import Data.ByteString.Internal (ByteString(..))
 import qualified Data.ByteString as SB
 import qualified Data.ByteString.Lazy.Internal as LB
 import qualified Data.ByteString.Lazy as LB
@@ -101,18 +104,14 @@ hashSalt32 :: Hashable a => Word32  -- ^ salt
            -> a                 -- ^ value to hash
            -> Word32
 {-# INLINE hashSalt32 #-}
-hashSalt32 salt k =
-    let !r = unsafePerformIO $ hashIO32 k salt
-    in r
+hashSalt32 salt k = unsafePerformIO $ hashIO32 k salt
 
 -- | Compute a salted 64-bit hash.
 hashSalt64 :: Hashable a => Word64  -- ^ salt
            -> a                 -- ^ value to hash
            -> Word64
 {-# INLINE hashSalt64 #-}
-hashSalt64 salt k =
-    let !r = unsafePerformIO $ hashIO64 k salt
-    in r
+hashSalt64 salt k = unsafePerformIO $ hashIO64 k salt
 
 -- | Compute a list of 32-bit hashes.  The value to hash may be
 -- inspected as many times as there are hashes requested.
@@ -251,25 +250,25 @@ doubleHash ptr bytes p1 p2
           | otherwise        = hashLittle2 ptr bytes p1 p2
 
 instance Hashable SB.ByteString where
-    hashIO32 bs salt = SB.useAsCStringLen bs $ \(ptr, len) -> do
+    hashIO32 bs salt = unsafeUseAsCStringLen bs $ \ptr len ->
                        alignedHash ptr (fromIntegral len) salt
 
     {-# INLINE hashIO64 #-}
-    hashIO64 bs salt = SB.useAsCStringLen bs $ \(ptr, len) -> do
+    hashIO64 bs salt = unsafeUseAsCStringLen bs $ \ptr len ->
                        alignedHash2 ptr (fromIntegral len) salt
 
 rechunk :: LB.ByteString -> [SB.ByteString]
 rechunk s | LB.null s = []
           | otherwise = let (pre,suf) = LB.splitAt chunkSize s
                         in  repack pre : rechunk suf
-    where repack = SB.concat . LB.toChunks
+    where repack    = SB.concat . LB.toChunks
           chunkSize = fromIntegral LB.defaultChunkSize
 
 instance Hashable LB.ByteString where
     hashIO32 bs salt = foldM (flip hashIO32) salt (rechunk bs)
 
     {-# INLINE hashIO64 #-}
-    hashIO64 bs salt = hashStrictStrings (rechunk bs) salt
+    hashIO64 = hashChunks
 
 instance Hashable a => Hashable (Maybe a) where
     hashIO32 Nothing salt = return salt
@@ -328,14 +327,54 @@ hashList64 xs salt =
     withArrayLen xs $ \len ptr ->
         alignedHash2 ptr (fromIntegral (len * sizeOf (head xs))) salt
 
--- | A more efficient way to hash a list of strict ByteStrings.  Used
--- by the lazy ByteString hash code.
-hashStrictStrings :: [SB.ByteString] -> Word64 -> IO Word64
-hashStrictStrings xs salt =
+unsafeUseAsCStringLen :: SB.ByteString -> (CString -> Int -> IO a) -> IO a
+unsafeUseAsCStringLen (PS fp o l) action =
+    withForeignPtr fp $ \p -> action (p `plusPtr` o) l
+
+type HashState = Ptr Word32
+
+foreign import ccall unsafe "lookup3.h _jenkins_little2_begin" c_begin
+    :: Ptr Word32 -> Ptr Word32 -> HashState -> IO ()
+
+foreign import ccall unsafe "lookup3.h _jenkins_little2_frag" c_frag
+    :: Ptr a -> CSize -> HashState -> CSize -> IO CSize
+
+foreign import ccall unsafe "lookup3.h _jenkins_little2_step" c_step
+    :: Ptr a -> CSize -> HashState -> IO CSize
+
+foreign import ccall unsafe "lookup3.h _jenkins_little2_end" c_end
+    :: CInt -> Ptr Word32 -> Ptr Word32 -> HashState -> IO ()
+
+unsafeAdjustCStringLen :: SB.ByteString -> Int -> (CString -> Int -> IO a)
+                       -> IO a
+unsafeAdjustCStringLen (PS fp o l) d action
+  | d > l     = action nullPtr 0
+  | otherwise = withForeignPtr fp $ \p -> action (p `plusPtr` (o + d)) (l - d)
+
+hashChunks :: LB.ByteString -> Word64 -> IO Word64
+hashChunks s salt = do
     with (fromIntegral salt) $ \sp -> do
       let p1 = castPtr sp
           p2 = castPtr sp `plusPtr` 4
-          go x = SB.useAsCStringLen x $ \(ptr,len) ->
-                 doubleHash ptr (fromIntegral len) p1 p2
-      mapM_ go xs
+      allocaArray 3 $ \st -> do
+        let step :: LB.ByteString -> Int -> IO Int
+            step (LB.Chunk x xs) off = do
+              unread <- unsafeAdjustCStringLen x off $ \ptr len ->
+                        c_step ptr (fromIntegral len) st
+              if unread > 0
+                then frag xs unread
+                else step xs 0
+            step _ _ = return 0
+
+            frag :: LB.ByteString -> CSize -> IO Int
+            frag c@(LB.Chunk x xs) stoff = do
+              nstoff <- unsafeUseAsCStringLen x $ \ptr len -> do
+                c_frag ptr (fromIntegral len) st stoff
+              if nstoff == 12
+                then step c (fromIntegral (nstoff - stoff))
+                else frag xs nstoff
+            frag LB.Empty stoff = return (fromIntegral (12 - stoff))
+        c_begin p1 p2 st 
+        unread <- step s 0
+        c_end (fromIntegral unread) p1 p2 st
       peek sp

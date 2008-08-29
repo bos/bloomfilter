@@ -1,6 +1,6 @@
 count := 1000
 
-all: test-$(count).out
+all: test-$(count).out timing
 
 QC: QC.hs QCSupport.hs
 	ghc -Wall -O -o $@ --make $<

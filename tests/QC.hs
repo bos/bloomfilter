@@ -38,18 +38,12 @@ tests = [
  , p "Word64" $ prop_pai (undefined :: Word64)
  , p "String" $ prop_pai (undefined :: String)
  , p "LB.ByteString" $ prop_pai (undefined :: LB.ByteString)
- , p "SB.ByteString" $ prop_pai (undefined :: SB.ByteString)
- , p "(String,Int)" $ prop_pai (undefined :: (String,Int))
- , p "(Double,Int,SB.ByteString)" $ prop_pai
-         (undefined :: (Double,Int,SB.ByteString))
- , p "(Ordering,(Char,Int),LB.ByteString,Word64)" $ prop_pai
-         (undefined :: (Ordering,(Char,Int),LB.ByteString,Word64))
- , (flip limCheck prop_rechunked_eq, "prop_rechunked_eq")
+ , p "prop_rechunked_eq" prop_rechunked_eq
  ]
 
 rechunk :: Int64 -> LB.ByteString -> LB.ByteString
-rechunk 0 xs = xs
-rechunk k xs = LB.fromChunks (go xs)
+rechunk k xs | k <= 0    = xs
+             | otherwise = LB.fromChunks (go xs)
     where go s | LB.null s = []
                | otherwise = let (pre,suf) = LB.splitAt k s
                              in  repack pre : go suf
@@ -57,14 +51,14 @@ rechunk k xs = LB.fromChunks (go xs)
 
 -- Ensure that a property over a lazy ByteString holds if we change
 -- the chunk boundaries.
-prop_rechunked :: Eq a => (LB.ByteString -> a)
-               -> LB.ByteString -> Property
+prop_rechunked :: Eq a => (LB.ByteString -> a) -> LB.ByteString -> Property
 prop_rechunked f s =
     let l = LB.length s
     in l > 0 ==> forAll (choose (1,l-1)) $ \k ->
         let n = k `mod` l
         in n > 0 ==> f s == f (rechunk n s)
 
+prop_rechunked_eq :: LB.ByteString -> Property
 prop_rechunked_eq = prop_rechunked hash64
 
 main :: IO ()
