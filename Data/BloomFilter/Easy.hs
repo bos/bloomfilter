@@ -24,6 +24,7 @@ module Data.BloomFilter.Easy
     -- $example
 
     -- * Useful defaults for creation
+    , safeSuggestSizing
     , suggestSizing
     ) where
 
@@ -57,18 +58,29 @@ easyList errRate xs = fromListB (cheapHashes numHashes) numBits xs
 -- filter should return @True@ when an element is not actually
 -- present.  It should be a fraction between 0 and 1, so a 1% false
 -- positive rate is represented by 0.01.
-suggestSizing :: Int            -- ^ expected maximum capacity
-              -> Double         -- ^ desired false positive rate (0 < /e/ < 1)
-              -> (Int, Int)
-suggestSizing capacity errRate
-    | capacity <= 0                = fatal "invalid capacity"
-    | errRate <= 0 || errRate >= 1 = fatal "invalid error rate"
+safeSuggestSizing
+    :: Int              -- ^ expected maximum capacity
+    -> Double           -- ^ desired false positive rate (0 < /e/ < 1)
+    -> Either String (Int, Int)
+safeSuggestSizing capacity errRate
+    | capacity <= 0                = Left "invalid capacity"
+    | errRate <= 0 || errRate >= 1 = Left "invalid error rate"
     | otherwise =
     let cap = fromIntegral capacity
         (bits :: Double, hashes :: Double) =
             minimum [((-k) * cap / log (1 - (errRate ** (1 / k))), k)
                      | k <- [1..100]]
-    in (nextPowerOfTwo (ceiling bits), truncate hashes)
+        roundedBits = nextPowerOfTwo (ceiling bits)
+    in if roundedBits <= 0
+       then Left  "capacity too large to represent"
+       else Right (roundedBits, truncate hashes)
+
+-- | Behaves as 'safeSuggestSizing', but calls 'error' if given
+-- invalid or out-of-range inputs.
+suggestSizing :: Int            -- ^ expected maximum capacity
+              -> Double         -- ^ desired false positive rate (0 < /e/ < 1)
+              -> (Int, Int)
+suggestSizing cap errs = either fatal id (safeSuggestSizing cap errs)
   where fatal = error . ("Data.BloomFilter.Util.suggestSizing: " ++)
 
 -- $example
