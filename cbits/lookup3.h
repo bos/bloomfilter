@@ -27,6 +27,15 @@
 #define rot(x,k) (((x)<<(k)) | ((x)>>(32-(k))))
 
 /*
+ *
+ */
+#if (defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ == 610)
+# define MAYBESTATIC
+#else
+# define MAYBESTATIC static inline
+#endif
+
+/*
 -------------------------------------------------------------------------------
 mix -- mix 3 32-bit values reversibly.
 
@@ -126,7 +135,7 @@ void _jenkins_hashword2(const uint32_t *key, size_t length,
 void _jenkins_hashlittle2(const void *key, size_t length,
 			  uint32_t *pc, uint32_t *pb);
 
-static inline void _jenkins_little2_begin(const uint32_t *pc,
+MAYBESTATIC void _jenkins_little2_begin(const uint32_t *pc,
 					  const uint32_t *pb,
 					  uint32_t st[3])
 {
@@ -141,7 +150,7 @@ static inline void _jenkins_little2_begin(const uint32_t *pc,
   st[2] = c;
 }
 
-static inline size_t _jenkins_little2_frag(const void *key,
+MAYBESTATIC size_t _jenkins_little2_frag(const void *key,
 					   size_t length,
 					   uint32_t st[4],
 					   size_t offset)
@@ -166,7 +175,7 @@ static inline size_t _jenkins_little2_frag(const void *key,
   return offset;
 }
 
-static inline size_t _jenkins_little2_step(const void *key,
+MAYBESTATIC size_t _jenkins_little2_step(const void *key,
 					   size_t length,
 					   uint32_t st[3])
 {
@@ -333,7 +342,7 @@ static inline size_t _jenkins_little2_step(const void *key,
 }
 
 
-static inline void _jenkins_little2_end(int nonempty,
+MAYBESTATIC void _jenkins_little2_end(int nonempty,
 					uint32_t *pc,
 					uint32_t *pb,
 					const uint32_t st[3])
