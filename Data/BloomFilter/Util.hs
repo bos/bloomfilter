@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE MagicHash, TypeOperators #-}
 
 module Data.BloomFilter.Util
     (
