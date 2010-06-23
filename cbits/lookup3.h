@@ -29,7 +29,7 @@
 /*
  *
  */
-#if (defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ == 610)
+#if (defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ >= 610)
 # define MAYBESTATIC
 #else
 # define MAYBESTATIC static inline
