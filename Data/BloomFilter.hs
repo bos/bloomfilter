@@ -142,7 +142,8 @@ instance NFData (Bloom a) where
 
 -- | Create a new mutable Bloom filter.  For efficiency, the number of
 -- bits used may be larger than the number requested.  It is always
--- rounded up to the nearest higher power of two.
+-- rounded up to the nearest higher power of two, but clamped at a
+-- maximum of 4 gigabits, since hashes are 32 bits in size.
 --
 -- For a safer creation interface, use 'createB'.  To convert a
 -- mutable filter to an immutable filter for use in pure code, use
@@ -152,6 +153,7 @@ newMB :: (a -> [Hash])          -- ^ family of hash functions to use
       -> ST s (MBloom s a)
 newMB hash numBits = MB hash shift mask `liftM` newArray numElems numBytes
   where twoBits | numBits < 1 = 1
+                | numBits > maxHash = maxHash
                 | isPowerOfTwo numBits = numBits
                 | otherwise = nextPowerOfTwo numBits
         numElems = max 2 (twoBits `shiftR` logBitsInHash)
@@ -160,6 +162,9 @@ newMB hash numBits = MB hash shift mask `liftM` newArray numElems numBytes
         shift = logPower2 trueBits
         mask = trueBits - 1
         isPowerOfTwo n = n .&. (n - 1) == 0
+
+maxHash :: Int
+maxHash = 4294967296 -- fromIntegral (maxBound :: Hash)
 
 logBitsInHash :: Int
 logBitsInHash = 5 -- logPower2 bitsInHash
