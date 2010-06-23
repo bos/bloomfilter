@@ -3,7 +3,7 @@ count := 1000
 all: test-$(count).out timing
 
 QC: QC.hs QCSupport.hs
-	ghc -Wall -O -o $@ --make $<
+	ghc -package QuickCheck-1.2.0.0 -Wall -O -o $@ --make $<
 
 test-$(count).out: QC
 	./QC $(count) | tee test-$(count).out
