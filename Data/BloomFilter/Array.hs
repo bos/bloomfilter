@@ -15,7 +15,7 @@ newArray :: forall e s. (MArray (STUArray s) e (ST s)) =>
 {-# INLINE newArray #-}
 newArray numElems numBytes = do
   ary@(STUArray _ _ _ marr#) <- unsafeNewArray_ (0, numElems - 1)
-  unsafeIOToST (memset marr# 0 (fromIntegral numBytes))
+  _ <- unsafeIOToST (memset marr# 0 (fromIntegral numBytes))
   return ary
 
 foreign import ccall unsafe "memset"
