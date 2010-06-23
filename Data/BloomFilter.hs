@@ -188,7 +188,7 @@ createB :: (a -> [Hash])        -- ^ family of hash functions to use
 {-# INLINE createB #-}
 createB hash numBits body = runST $ do
   mb <- newMB hash numBits
-  body mb
+  _ <- body mb
   unsafeFreezeMB mb
 
 -- | Create an empty Bloom filter.
@@ -267,7 +267,7 @@ modifyB :: (forall s. (MBloom s a -> ST s z))  -- ^ mutation function (result is
 {-# INLINE modifyB #-}
 modifyB body ub = runST $ do
   mb <- thawMB ub
-  body mb
+  _ <- body mb
   unsafeFreezeMB mb
 
 -- | Create a new Bloom filter from an existing one, with the given
