@@ -61,16 +61,16 @@ import qualified Data.ByteString.Lazy as LB
 -- import Prelude hiding ((/), (*), div, divMod, mod, rem)
 
 foreign import ccall unsafe "lookup3.h _jenkins_hashword" hashWord
-    :: Ptr CInt -> CSize -> CInt -> IO CInt
+    :: Ptr Word32 -> CSize -> Word32 -> IO Word32
 
 foreign import ccall unsafe "lookup3.h _jenkins_hashword2" hashWord2
-    :: Ptr CInt -> CSize -> Ptr CInt -> Ptr CInt -> IO ()
+    :: Ptr Word32 -> CSize -> Ptr Word32 -> Ptr Word32 -> IO ()
 
 foreign import ccall unsafe "lookup3.h _jenkins_hashlittle" hashLittle
-    :: Ptr a -> CSize -> CInt -> IO CInt
+    :: Ptr a -> CSize -> Word32 -> IO Word32
 
 foreign import ccall unsafe "lookup3.h _jenkins_hashlittle2" hashLittle2
-    :: Ptr a -> CSize -> Ptr CInt -> Ptr CInt -> IO ()
+    :: Ptr a -> CSize -> Ptr Word32 -> Ptr Word32 -> IO ()
 
 class Hashable a where
     -- | Compute a 32-bit hash of a value.  The salt value perturbs
@@ -222,12 +222,9 @@ div4 k = fromIntegral ((fromIntegral k :: HTYPE_SIZE_T) `shiftR` 2)
 
 alignedHash :: Ptr a -> CSize -> Word32 -> IO Word32
 alignedHash ptr bytes salt
-    | bytes .&. 3 == 0 = hashWord (castPtr ptr) (div4 bytes) salt' >>= cast32
-    | otherwise        = hashLittle ptr bytes salt' >>= cast32
+    | bytes .&. 3 == 0 = hashWord (castPtr ptr) (div4 bytes) salt'
+    | otherwise        = hashLittle ptr bytes salt'
   where salt' = fromIntegral salt
-
-cast32 :: CInt -> IO Word32
-cast32 = return . fromIntegral
 
 -- Inlined from Foreign.Marshal.Utils, for performance reasons.
 with :: Storable a => a -> (Ptr a -> IO b) -> IO b
@@ -244,7 +241,7 @@ alignedHash2 ptr bytes salt =
       doubleHash ptr bytes p1 p2
       peek sp
 
-doubleHash :: Ptr a -> CSize -> Ptr CInt -> Ptr CInt -> IO ()
+doubleHash :: Ptr a -> CSize -> Ptr Word32 -> Ptr Word32 -> IO ()
 doubleHash ptr bytes p1 p2
           | bytes .&. 3 == 0 = hashWord2 (castPtr ptr) (div4 bytes) p1 p2
           | otherwise        = hashLittle2 ptr bytes p1 p2
