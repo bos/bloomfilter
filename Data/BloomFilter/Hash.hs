@@ -143,11 +143,12 @@ cheapHashes :: Hashable a => Int -- ^ number of hashes to compute
 {-# SPECIALIZE cheapHashes :: Int -> String -> [Word32] #-}
 cheapHashes k v = go 0
     where go i | i == j = []
-               | otherwise = h1 + (h2 `shiftR` i) : go (i + 1)
-          !h1 = fromIntegral (h `shiftR` 32) .&. maxBound
-          !h2 = fromIntegral h
+               | otherwise = hash : go (i + 1)
+               where !hash = h1 + (h2 `shiftR` i)
+          h1 = fromIntegral (h `shiftR` 32)
+          h2 = fromIntegral h
           h = hashSalt64 0x9150a946c4a8966e v
-          j = fromIntegral k - 1
+          j = fromIntegral k
 
 instance Hashable () where
     hashIO32 _ salt = return salt
