@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, Rank2Types, TypeOperators #-}
+{-# LANGUAGE BangPatterns, CPP, Rank2Types, TypeOperators #-}
 {-# OPTIONS_GHC -fglasgow-exts #-}
 
 -- |
@@ -87,6 +87,8 @@ module Data.BloomFilter
     , bitArrayMB
     ) where
 
+#include "MachDeps.h"
+
 import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST, runST)
 import Control.Parallel.Strategies (NFData(..))
@@ -164,7 +166,11 @@ newMB hash numBits = MB hash shift mask `liftM` newArray numElems numBytes
         isPowerOfTwo n = n .&. (n - 1) == 0
 
 maxHash :: Int
-maxHash = 4294967296 -- fromIntegral (maxBound :: Hash)
+#if WORD_SIZE_IN_BITS == 64
+maxHash = 4294967296
+#else
+maxHash = 2147483648
+#endif
 
 logBitsInHash :: Int
 logBitsInHash = 5 -- logPower2 bitsInHash
