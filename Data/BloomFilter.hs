@@ -169,7 +169,7 @@ maxHash :: Int
 #if WORD_SIZE_IN_BITS == 64
 maxHash = 4294967296
 #else
-maxHash = 2147483648
+maxHash = 1073741824
 #endif
 
 logBitsInHash :: Int
