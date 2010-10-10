@@ -5,41 +5,37 @@ license-file:    LICENSE
 author:          Bryan O'Sullivan <bos@serpentine.com>
 maintainer:      Bryan O'Sullivan <bos@serpentine.com>
 homepage:        http://www.serpentine.com/software/bloomfilter
+bug-reports:     http://bitbucket.org/bos/bloomfilter/issues
 description:     Pure and impure Bloom Filter implementations.
 synopsis:        Pure and impure Bloom Filter implementations.
 category:        Data
 stability:       provisional
 build-type:      Simple
-cabal-version:   >= 1.2
+cabal-version:   >= 1.6
 extra-source-files: README cbits/lookup3.c cbits/lookup3.h
                  examples/Makefile examples/SpellChecker.hs examples/Words.hs
 
-flag bytestring-in-base
-flag split-base
-
 library
-  if flag(bytestring-in-base)
-    -- bytestring was in base-2.0 and 2.1.1
-    build-depends: base >= 2.0 && < 2.2
-    cpp-options: -DBYTESTRING_IN_BASE
-  else
-    -- in base 1.0 and 3.0 bytestring is a separate package
-    build-depends: base < 2.0 || >= 3, bytestring >= 0.9
-
-  if flag(split-base)
-    build-depends:   base >= 3.0, containers, array, parallel
-  else
-    build-depends:   base < 3.0
-
+  build-depends:
+    array,
+    base       < 5,
+    bytestring == 0.9.*,
+    deepseq
+  if impl(ghc >= 6.10)
+    build-depends:
+      base >= 4
   exposed-modules:  Data.BloomFilter
                     Data.BloomFilter.Easy
                     Data.BloomFilter.Hash
   other-modules:    Data.BloomFilter.Array
                     Data.BloomFilter.Util
   c-sources:        cbits/lookup3.c
-  ghc-options:      -O2 -Wall -fvia-C -optc-O3
+  ghc-options:      -O2 -Wall
   ghc-prof-options: -auto-all
-  cc-options:       -O3
   include-dirs:     cbits
   includes:         lookup3.h
   install-includes: lookup3.h
+
+source-repository head
+  type:     mercurial
+  location: http://bitbucket.org/bos/bloomfilter

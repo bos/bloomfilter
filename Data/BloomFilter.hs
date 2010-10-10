@@ -91,7 +91,7 @@ module Data.BloomFilter
 
 import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST, runST)
-import Control.Parallel.Strategies (NFData(..))
+import Control.DeepSeq (NFData(..))
 import Data.Array.Base (unsafeAt, unsafeRead, unsafeWrite)
 import Data.Array.ST (STUArray, thaw, unsafeFreeze)
 import Data.Array.Unboxed (UArray)
