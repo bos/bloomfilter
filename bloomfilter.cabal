@@ -12,7 +12,7 @@ category:        Data
 stability:       provisional
 build-type:      Simple
 cabal-version:   >= 1.6
-extra-source-files: README cbits/lookup3.c cbits/lookup3.h
+extra-source-files: README.markdown cbits/lookup3.c cbits/lookup3.h
                  examples/Makefile examples/SpellChecker.hs examples/Words.hs
 
 library
