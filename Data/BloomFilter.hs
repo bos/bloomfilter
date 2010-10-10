@@ -99,8 +99,6 @@ import Data.Bits ((.&.), (.|.))
 import Data.BloomFilter.Array (newArray)
 import Data.BloomFilter.Util (FastShift(..), (:*)(..), nextPowerOfTwo)
 import Data.Word (Word32)
-import qualified Data.ByteString as SB
-import qualified Data.ByteString.Lazy as LB
 
 -- Make sure we're not performing any expensive arithmetic operations.
 import Prelude hiding ((/), (*), div, divMod, mod, rem)
@@ -119,7 +117,7 @@ type Hash = Word32
 
 -- | A mutable Bloom filter, for use within the 'ST' monad.
 data MBloom s a = MB {
-      hashMB :: {-# UNPACK #-} !(a -> [Hash])
+      hashMB :: !(a -> [Hash])
     , shiftMB :: {-# UNPACK #-} !Int
     , maskMB :: {-# UNPACK #-} !Int
     , bitArrayMB :: {-# UNPACK #-} !(STUArray s Int Hash)
@@ -127,7 +125,7 @@ data MBloom s a = MB {
 
 -- | An immutable Bloom filter, suitable for querying from pure code.
 data Bloom a = B {
-      hashB :: {-# UNPACK #-} !(a -> [Hash])
+      hashB :: !(a -> [Hash])
     , shiftB :: {-# UNPACK #-} !Int
     , maskB :: {-# UNPACK #-} !Int
     , bitArrayB :: {-# UNPACK #-} !(UArray Int Hash)
@@ -243,9 +241,6 @@ hashesU ub elt = hashIdx (maskB ub) `map` hashB ub elt
 -- | Insert a value into a mutable Bloom filter.  Afterwards, a
 -- membership query for the same value is guaranteed to return @True@.
 insertMB :: MBloom s a -> a -> ST s ()
-{-# SPECIALIZE insertMB :: MBloom s SB.ByteString -> SB.ByteString -> ST s () #-}
-{-# SPECIALIZE insertMB :: MBloom s LB.ByteString -> LB.ByteString -> ST s () #-}
-{-# SPECIALIZE insertMB :: MBloom s String -> String -> ST s () #-}
 insertMB mb elt = do
   let mu = bitArrayMB mb
   forM_ (hashesM mb elt) $ \(word :* bit) -> do
@@ -367,14 +362,15 @@ lengthB = shiftL 1 . shiftB
 --
 --   * If it returns @'Just' (a,b)@, @a@ is added to the filter and
 --     @b@ is used as a new seed.
-unfoldB :: (a -> [Hash])        -- ^ family of hash functions to use
-        -> Int                  -- ^ number of bits in filter
-        -> (b -> Maybe (a, b))  -- ^ seeding function
-        -> b                    -- ^ initial seed
+unfoldB :: forall a b. (a -> [Hash]) -- ^ family of hash functions to use
+        -> Int                       -- ^ number of bits in filter
+        -> (b -> Maybe (a, b))       -- ^ seeding function
+        -> b                         -- ^ initial seed
         -> Bloom a
 {-# INLINE unfoldB #-}
 unfoldB hashes numBits f k = createB hashes numBits (loop k)
-  where loop j mb = case f j of
+  where loop :: forall s. b -> MBloom s a -> ST s ()
+        loop j mb = case f j of
                       Just (a, j') -> insertMB mb a >> loop j' mb
                       _ -> return ()
 
