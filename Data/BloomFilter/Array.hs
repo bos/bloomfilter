@@ -1,6 +1,5 @@
 {-# LANGUAGE FlexibleContexts, ForeignFunctionInterface, MagicHash,
-             Rank2Types #-}
-{-# OPTIONS_GHC -fglasgow-exts #-}
+             Rank2Types, UnliftedFFITypes #-}
 
 module Data.BloomFilter.Array (newArray) where
 
