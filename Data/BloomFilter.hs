@@ -1,5 +1,5 @@
-{-# LANGUAGE BangPatterns, CPP, Rank2Types, TypeOperators #-}
-{-# OPTIONS_GHC -fglasgow-exts #-}
+{-# LANGUAGE BangPatterns, CPP, Rank2Types, ScopedTypeVariables,
+    TypeOperators #-}
 
 -- |
 -- Module: Data.BloomFilter
