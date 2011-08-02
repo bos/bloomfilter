@@ -1,4 +1,5 @@
-{-# LANGUAGE CPP, ForeignFunctionInterface, TypeOperators #-}
+{-# LANGUAGE BangPatterns, CPP, ForeignFunctionInterface,
+    TypeOperators #-}
 
 -- |
 -- Module: Data.BloomFilter.Hash
