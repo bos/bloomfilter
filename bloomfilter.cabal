@@ -31,7 +31,6 @@ library
                     Data.BloomFilter.Util
   c-sources:        cbits/lookup3.c
   ghc-options:      -O2 -Wall
-  ghc-prof-options: -auto-all
   include-dirs:     cbits
   includes:         lookup3.h
   install-includes: lookup3.h
