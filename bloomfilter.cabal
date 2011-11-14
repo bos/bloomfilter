@@ -4,7 +4,7 @@ license:         BSD3
 license-file:    LICENSE
 author:          Bryan O'Sullivan <bos@serpentine.com>
 maintainer:      Bryan O'Sullivan <bos@serpentine.com>
-homepage:        http://www.serpentine.com/software/bloomfilter
+homepage:        https://github.com/bos/bloomfilter
 bug-reports:     https://github.com/bos/bloomfilter/issues
 description:     Pure and impure Bloom Filter implementations.
 synopsis:        Pure and impure Bloom Filter implementations.
