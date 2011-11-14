@@ -5,7 +5,7 @@ license-file:    LICENSE
 author:          Bryan O'Sullivan <bos@serpentine.com>
 maintainer:      Bryan O'Sullivan <bos@serpentine.com>
 homepage:        http://www.serpentine.com/software/bloomfilter
-bug-reports:     http://bitbucket.org/bos/bloomfilter/issues
+bug-reports:     https://github.com/bos/bloomfilter/issues
 description:     Pure and impure Bloom Filter implementations.
 synopsis:        Pure and impure Bloom Filter implementations.
 category:        Data
@@ -37,5 +37,9 @@ library
   install-includes: lookup3.h
 
 source-repository head
+  type:     git
+  location: git://github.com/bos/bloomfilter.git
+
+source-repository head
   type:     mercurial
-  location: http://bitbucket.org/bos/bloomfilter
+  location: https://bitbucket.org/bos/bloomfilter
