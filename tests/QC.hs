@@ -7,38 +7,36 @@ import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy.Char8 as LB
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
-import System.Environment (getArgs)
+import Test.Framework.Providers.QuickCheck2 (testProperty)
 import System.IO (BufferMode(..), hSetBuffering, stdout)
+import Test.Framework (Test, defaultMain)
 import Test.QuickCheck (Property, Testable, (==>), choose, forAll)
 
-import QCSupport (P(..), limCheck)
+import QCSupport (P(..))
 
-prop_pai :: (Hashable a) => a -> (a, P) -> Bool
-prop_pai _ (xs, P q) = let bf = easyList q [xs] in xs `elemB` bf
+prop_pai :: (Hashable a) => a -> a -> P -> Bool
+prop_pai _ xs (P q) = let bf = easyList q [xs] in xs `elemB` bf
 
-p :: Testable a => String -> a -> (Int -> IO (), String)
-p desc prop = (\count -> limCheck count prop, desc)
-
-tests :: [(Int -> IO (), String)]
+tests :: [Test]
 tests = [
-   p "()" $ prop_pai ()
- , p "Bool" $ prop_pai (undefined :: Bool)
- , p "Ordering" $ prop_pai (undefined :: Ordering)
- , p "Char" $ prop_pai (undefined :: Char)
- , p "Int" $ prop_pai (undefined :: Int)
- , p "Float" $ prop_pai (undefined :: Float)
- , p "Double" $ prop_pai (undefined :: Double)
- , p "Int8" $ prop_pai (undefined :: Int8)
- , p "Int16" $ prop_pai (undefined :: Int16)
- , p "Int32" $ prop_pai (undefined :: Int32)
- , p "Int64" $ prop_pai (undefined :: Int64)
- , p "Word8" $ prop_pai (undefined :: Word8)
- , p "Word16" $ prop_pai (undefined :: Word16)
- , p "Word32" $ prop_pai (undefined :: Word32)
- , p "Word64" $ prop_pai (undefined :: Word64)
- , p "String" $ prop_pai (undefined :: String)
- , p "LB.ByteString" $ prop_pai (undefined :: LB.ByteString)
- , p "prop_rechunked_eq" prop_rechunked_eq
+   testProperty "()" $ prop_pai ()
+ , testProperty "Bool" $ prop_pai (undefined :: Bool)
+ , testProperty "Ordering" $ prop_pai (undefined :: Ordering)
+ , testProperty "Char" $ prop_pai (undefined :: Char)
+ , testProperty "Int" $ prop_pai (undefined :: Int)
+ , testProperty "Float" $ prop_pai (undefined :: Float)
+ , testProperty "Double" $ prop_pai (undefined :: Double)
+ , testProperty "Int8" $ prop_pai (undefined :: Int8)
+ , testProperty "Int16" $ prop_pai (undefined :: Int16)
+ , testProperty "Int32" $ prop_pai (undefined :: Int32)
+ , testProperty "Int64" $ prop_pai (undefined :: Int64)
+ , testProperty "Word8" $ prop_pai (undefined :: Word8)
+ , testProperty "Word16" $ prop_pai (undefined :: Word16)
+ , testProperty "Word32" $ prop_pai (undefined :: Word32)
+ , testProperty "Word64" $ prop_pai (undefined :: Word64)
+ , testProperty "String" $ prop_pai (undefined :: String)
+ , testProperty "LB.ByteString" $ prop_pai (undefined :: LB.ByteString)
+ , testProperty "prop_rechunked_eq" prop_rechunked_eq
  ]
 
 rechunk :: Int64 -> LB.ByteString -> LB.ByteString
@@ -62,13 +60,4 @@ prop_rechunked_eq :: LB.ByteString -> Property
 prop_rechunked_eq = prop_rechunked hash64
 
 main :: IO ()
-main = do
-  args <- getArgs
-  let limits = case args of
-                [] -> [100]
-                xs -> map read xs
-  hSetBuffering stdout NoBuffering
-  forM_ limits $ \limit ->
-    forM_ tests $ \(test, desc) -> do
-      putStr $ desc ++ ": "
-      test limit
+main = defaultMain tests
