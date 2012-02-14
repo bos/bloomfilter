@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE CPP, GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module QCSupport
@@ -23,6 +23,8 @@ instance Arbitrary P where
 instance Arbitrary Ordering where
     arbitrary = oneof [return LT, return GT, return EQ]
 
+-- For some reason, MIN_VERSION_random doesn't work here :-(
+#if __GLASGOW_HASKELL__ < 704
 integralRandomR :: (Integral a, RandomGen g) => (a, a) -> g -> (a, g)
 integralRandomR (a,b) g = case randomR (fromIntegral a :: Int,
                                         fromIntegral b :: Int) g
@@ -31,6 +33,7 @@ integralRandomR (a,b) g = case randomR (fromIntegral a :: Int,
 instance Random Int64 where
   randomR = integralRandomR
   random = randomR (minBound,maxBound)
+#endif
 
 instance Arbitrary LB.ByteString where
     arbitrary = sized $ \n -> resize (round (sqrt (toEnum n :: Double)))
