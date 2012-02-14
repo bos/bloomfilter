@@ -44,7 +44,11 @@ import Data.List (unfoldr)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
 import Foreign.C.String (CString)
+#if __GLASGOW_HASKELL__ >= 704
+import Foreign.C.Types (CInt(..), CSize(..))
+#else
 import Foreign.C.Types (CInt, CSize)
+#endif
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Marshal.Array (allocaArray, withArrayLen)
