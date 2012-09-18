@@ -27,6 +27,7 @@ library
   exposed-modules:  Data.BloomFilter
                     Data.BloomFilter.Easy
                     Data.BloomFilter.Mutable
+                    Data.BloomFilter.Scalable.Mutable
                     Data.BloomFilter.Hash
   other-modules:    Data.BloomFilter.Array
                     Data.BloomFilter.Mutable.Internal
