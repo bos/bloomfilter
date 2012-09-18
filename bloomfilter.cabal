@@ -26,8 +26,10 @@ library
       base >= 4
   exposed-modules:  Data.BloomFilter
                     Data.BloomFilter.Easy
+                    Data.BloomFilter.Mutable
                     Data.BloomFilter.Hash
   other-modules:    Data.BloomFilter.Array
+                    Data.BloomFilter.Mutable.Internal
                     Data.BloomFilter.Util
   c-sources:        cbits/lookup3.c
   ghc-options:      -O2 -Wall
