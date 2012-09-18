@@ -1,5 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, Rank2Types, ScopedTypeVariables,
-    TypeOperators #-}
+{-# LANGUAGE BangPatterns, Rank2Types, ScopedTypeVariables, TypeOperators #-}
 
 -- |
 -- Module: Data.BloomFilter
@@ -66,8 +65,6 @@ module Data.BloomFilter
     -- | The raw bit array used by the immutable 'Bloom' type.
     , bitArray
     ) where
-
-#include "MachDeps.h"
 
 import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST, runST)

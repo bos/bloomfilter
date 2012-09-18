@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, CPP, Rank2Types, ScopedTypeVariables,
+{-# LANGUAGE BangPatterns, CPP, Rank2Types,
     TypeOperators #-}
 
 -- |

@@ -1,6 +1,3 @@
-{-# LANGUAGE BangPatterns, CPP, Rank2Types, ScopedTypeVariables,
-    TypeOperators #-}
-
 -- |
 -- Module: Data.BloomFilter.Mutable.Internal
 -- Copyright: Bryan O'Sullivan
