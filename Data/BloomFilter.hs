@@ -339,11 +339,9 @@ logPower2 k = go 0 k
 
 -- $ease
 --
--- This module provides both mutable and immutable interfaces for
--- creating and querying a Bloom filter.  It is most useful as a
--- low-level way to create a Bloom filter with a custom set of
--- characteristics, perhaps in combination with the hashing functions
--- in 'Data.BloomFilter.Hash'.
+-- This module provides immutable interfaces for working with a
+-- query-only Bloom filter, and for converting to and from mutable
+-- Bloom filters.
 --
 -- For a higher-level interface that is easy to use, see the
 -- 'Data.BloomFilter.Easy' module.

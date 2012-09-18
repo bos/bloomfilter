@@ -56,7 +56,7 @@ module Data.BloomFilter.Mutable
     -- expect them to be portable to systems with different
     -- conventions for endianness or word size.
 
-    -- | The raw bit array used by the immutable 'MBloom' type.
+    -- | The raw bit array used by the mutable 'MBloom' type.
     , bitArray
     ) where
 
@@ -77,15 +77,11 @@ import Prelude hiding (elem, length, notElem,
 
 -- | Create a new mutable Bloom filter.  For efficiency, the number of
 -- bits used may be larger than the number requested.  It is always
--- rounded up to the nearest higher power of two, but clamped at a
--- maximum of 4 gigabits, since hashes are 32 bits in size.
---
--- For a safer creation interface, use 'create'.  To convert a
--- mutable filter to an immutable filter for use in pure code, use
--- 'unsafeFreeze'.
+-- rounded up to the nearest higher power of two, but will be clamped
+-- at a maximum of 4 gigabits, since hashes are 32 bits in size.
 new :: (a -> [Hash])          -- ^ family of hash functions to use
-      -> Int                    -- ^ number of bits in filter
-      -> ST s (MBloom s a)
+    -> Int                    -- ^ number of bits in filter
+    -> ST s (MBloom s a)
 new hash numBits = MB hash shift mask `liftM` newArray numElems numBytes
   where twoBits | numBits < 1 = 1
                 | numBits > maxHash = maxHash
@@ -179,14 +175,9 @@ logPower2 k = go 0 k
 
 -- $ease
 --
--- This module provides both mutable and immutable interfaces for
--- creating and querying a Bloom filter.  It is most useful as a
--- low-level way to create a Bloom filter with a custom set of
--- characteristics, perhaps in combination with the hashing functions
--- in 'Data.BloomFilter.Hash'.
---
--- For a higher-level interface that is easy to use, see the
--- 'Data.BloomFilter.Easy' module.
+-- This module provides both mutable interfaces for creating and
+-- querying a Bloom filter.  It is most useful as a low-level way to
+-- manage a Bloom filter with a custom set of characteristics.
 
 -- $performance
 --
