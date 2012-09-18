@@ -72,7 +72,7 @@ safeSuggestSizing capacity errRate
             minimum [((-k) * cap / log (1 - (errRate ** (1 / k))), k)
                      | k <- [1..100]]
         roundedBits = nextPowerOfTwo (ceiling bits)
-    in if roundedBits <= 0
+    in if roundedBits <= 0 || roundedBits > 0xffffffff
        then Left  "capacity too large to represent"
        else Right (roundedBits, truncate hashes)
 
