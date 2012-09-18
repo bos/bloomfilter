@@ -41,6 +41,12 @@ module Data.BloomFilter
     , MBloom
 
     -- * Immutable Bloom filters
+
+    -- ** Conversion
+    , freeze
+    , thaw
+    , unsafeFreeze
+
     -- ** Creation
     , unfold
 
@@ -53,7 +59,7 @@ module Data.BloomFilter
     , elem
     , notElem
 
-    -- ** Mutators
+    -- ** Modification
     , insert
     , insertList
 
@@ -125,8 +131,14 @@ create hash numBits body = runST $ do
   unsafeFreeze mb
 
 -- | Create an immutable Bloom filter from a mutable one.  The mutable
+-- filter may be modified afterwards.
+freeze :: MBloom s a -> ST s (Bloom a)
+freeze mb = B (MB.hashes mb) (MB.shift mb) (MB.mask mb) `liftM`
+            ST.freeze (MB.bitArray mb)
+
+-- | Create an immutable Bloom filter from a mutable one.  The mutable
 -- filter /must not/ be modified afterwards, or a runtime crash may
--- occur.  For a safer creation interface, use 'create'.
+-- occur.  For a safer creation interface, use 'freeze' or 'create'.
 unsafeFreeze :: MBloom s a -> ST s (Bloom a)
 unsafeFreeze mb = B (MB.hashes mb) (MB.shift mb) (MB.mask mb) `liftM`
                     ST.unsafeFreeze (MB.bitArray mb)
