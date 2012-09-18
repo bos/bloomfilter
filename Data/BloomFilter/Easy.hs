@@ -16,9 +16,9 @@ module Data.BloomFilter.Easy
     -- * Easy creation and querying
       Bloom
     , easyList
-    , elemB
-    , notElemB
-    , lengthB
+    , B.elem
+    , B.notElem
+    , B.length
 
     -- ** Example: a spell checker
     -- $example
@@ -28,11 +28,12 @@ module Data.BloomFilter.Easy
     , suggestSizing
     ) where
 
-import Data.BloomFilter (Bloom, elemB, fromListB, lengthB, notElemB)
+import Data.BloomFilter (Bloom)
 import Data.BloomFilter.Hash (Hashable, cheapHashes)
 import Data.BloomFilter.Util (nextPowerOfTwo)
 import qualified Data.ByteString as SB
 import qualified Data.ByteString.Lazy as LB
+import qualified Data.BloomFilter as B
 
 -- | Create a Bloom filter with the given false positive rate and
 -- members.  The hash functions used are computed by the @cheapHashes@
@@ -44,7 +45,7 @@ easyList :: (Hashable a)
 {-# SPECIALIZE easyList :: Double -> [String] -> Bloom String #-}
 {-# SPECIALIZE easyList :: Double -> [LB.ByteString] -> Bloom LB.ByteString #-}
 {-# SPECIALIZE easyList :: Double -> [SB.ByteString] -> Bloom SB.ByteString #-}
-easyList errRate xs = fromListB (cheapHashes numHashes) numBits xs
+easyList errRate xs = B.fromList (cheapHashes numHashes) numBits xs
     where capacity = length xs
           (numBits, numHashes)
               | capacity > 0 = suggestSizing capacity errRate

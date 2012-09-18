@@ -1,7 +1,7 @@
 module Main where
 
 import Control.Monad (forM_)
-import Data.BloomFilter.Easy (easyList, elemB)
+import qualified Data.BloomFilter.Easy as B
 import Data.BloomFilter.Hash (Hashable(..), hash64)
 import qualified Data.ByteString.Char8 as SB
 import qualified Data.ByteString.Lazy.Char8 as LB
@@ -15,7 +15,7 @@ import Test.QuickCheck (Property, Testable, (==>), choose, forAll)
 import QCSupport (P(..))
 
 prop_pai :: (Hashable a) => a -> a -> P -> Bool
-prop_pai _ xs (P q) = let bf = easyList q [xs] in xs `elemB` bf
+prop_pai _ xs (P q) = let bf = B.easyList q [xs] in xs `B.elem` bf
 
 tests :: [Test]
 tests = [
