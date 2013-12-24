@@ -38,6 +38,7 @@ hasher v = go 0xb9c53ef3
     where go s = let s' = hashSalt32 s v
                  in s' : go s'
 
+grow :: (a -> [Hash]) -> Int -> Double -> Double -> ST s (MBloom s a)
 grow hasher cap errRate tightening = do
   let newCap = cap * 2
       newErrRate = errRate * tightening
