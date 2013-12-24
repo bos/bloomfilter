@@ -3,7 +3,8 @@
 
 module Data.BloomFilter.Array (newArray) where
 
-import Control.Monad.ST (ST, unsafeIOToST)
+import Control.Monad.ST (ST)
+import Control.Monad.ST.Unsafe (unsafeIOToST)
 import Data.Array.Base (MArray, STUArray(..), unsafeNewArray_)
 #if __GLASGOW_HASKELL__ >= 704
 import Foreign.C.Types (CInt(..), CSize(..))

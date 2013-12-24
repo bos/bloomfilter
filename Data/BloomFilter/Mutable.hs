@@ -65,7 +65,6 @@ module Data.BloomFilter.Mutable
 import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST)
 import Data.Array.Base (unsafeRead, unsafeWrite)
-import Data.Array.ST (thaw, unsafeFreeze)
 import Data.Bits ((.&.), (.|.))
 import Data.BloomFilter.Array (newArray)
 import Data.BloomFilter.Util (FastShift(..), (:*)(..), nextPowerOfTwo)

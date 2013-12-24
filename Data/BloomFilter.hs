@@ -76,7 +76,7 @@ import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST, runST)
 import Control.DeepSeq (NFData(..))
 import Data.Array.Base (unsafeAt)
-import qualified Data.Array.ST as ST
+import qualified Data.Array.Base as ST
 import Data.Array.Unboxed (UArray)
 import Data.Bits ((.&.))
 import Data.BloomFilter.Util (FastShift(..), (:*)(..))
