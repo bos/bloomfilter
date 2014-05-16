@@ -2,23 +2,23 @@
 -- builds a Bloom filter from a list of words, one per line, and
 -- queries it exhaustively.
 
-module Main () where
+module Main (main) where
 
 import Control.Monad (forM_, mapM_)
-import Data.BloomFilter (Bloom, fromListB, elemB, lengthB)
+import qualified Data.BloomFilter as BF
 import Data.BloomFilter.Hash (cheapHashes)
 import Data.BloomFilter.Easy (easyList, suggestSizing)
 import qualified Data.ByteString.Lazy.Char8 as B
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import System.Environment (getArgs)
 
-conservative, aggressive :: Double -> [B.ByteString] -> Bloom B.ByteString
+conservative, aggressive :: Double -> [B.ByteString] -> BF.Bloom B.ByteString
 conservative = easyList
 
 aggressive fpr xs
     = let (size, numHashes) = suggestSizing (length xs) fpr
           k = 3
-      in fromListB (cheapHashes (numHashes - k)) (size * k) xs
+      in BF.fromList (cheapHashes (numHashes - k)) (size * k) xs
 
 testFunction = conservative
 
@@ -36,6 +36,6 @@ main = do
     print filt
     c <- getCurrentTime
     putStrLn $ show (diffUTCTime c b) ++ "s to construct filter"
-    {-# SCC "query" #-} mapM_ print $ filter (not . (`elemB` filt)) words
+    {-# SCC "query" #-} mapM_ print $ filter (not . (`BF.elem` filt)) words
     d <- getCurrentTime
     putStrLn $ show (diffUTCTime d c) ++ "s to query every element"

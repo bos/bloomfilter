@@ -1,5 +1,5 @@
-import Data.BloomFilter.Easy (easyList, notElemB)
+import qualified Data.BloomFilter.Easy as BFE
 
 main = do
-  filt <- (easyList 0.01 . words) `fmap` readFile "/usr/share/dict/words"
-  interact (unlines . filter (`notElemB` filt) . lines)
+  filt <- (BFE.easyList 0.01 . words) `fmap` readFile "/usr/share/dict/words"
+  interact (unlines . filter (`BFE.notElem` filt) . lines)
