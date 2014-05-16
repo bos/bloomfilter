@@ -44,7 +44,7 @@ test-suite tests
   main-is:        QC.hs
   other-modules:  QCSupport
   build-depends:
-    QuickCheck == 2.4.*,
+    QuickCheck >= 2.5 && < 2.8,
     base < 5,
     bloomfilter,
     bytestring,

@@ -20,9 +20,6 @@ instance Arbitrary P where
     arbitrary = choose (epsilon, 1 - epsilon)
         where epsilon = 1e-6 :: P
 
-instance Arbitrary Ordering where
-    arbitrary = oneof [return LT, return GT, return EQ]
-
 instance Arbitrary LB.ByteString where
     arbitrary = sized $ \n -> resize (round (sqrt (toEnum n :: Double)))
                 ((LB.fromChunks . filter (not . SB.null)) `fmap` arbitrary)
