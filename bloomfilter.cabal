@@ -18,16 +18,12 @@ extra-source-files: README.markdown cbits/lookup3.c cbits/lookup3.h
 library
   build-depends:
     array,
-    base       < 5,
+    base       >= 4 && < 5,
     bytestring >= 0.9,
     deepseq
-  if impl(ghc >= 6.10)
-    build-depends:
-      base >= 4
   exposed-modules:  Data.BloomFilter
                     Data.BloomFilter.Easy
                     Data.BloomFilter.Mutable
-                    Data.BloomFilter.Scalable.Mutable
                     Data.BloomFilter.Hash
   other-modules:    Data.BloomFilter.Array
                     Data.BloomFilter.Mutable.Internal
@@ -45,15 +41,12 @@ test-suite tests
   other-modules:  QCSupport
   build-depends:
     QuickCheck >= 2.5 && < 2.8,
-    base < 5,
+    base >= 4 && < 5,
     bloomfilter,
     bytestring,
     random,
     test-framework,
     test-framework-quickcheck2
-  if impl(ghc >= 6.10)
-    build-depends:
-      base >= 4
 
 source-repository head
   type:     git
