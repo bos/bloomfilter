@@ -81,7 +81,7 @@ import Prelude hiding (elem, length, notElem,
 new :: (a -> [Hash])          -- ^ family of hash functions to use
     -> Int                    -- ^ number of bits in filter
     -> ST s (MBloom s a)
-new hash numBits = MB hash shift mask `liftM` newArray numElems numBytes
+new hash numBits = MB hash shft msk `liftM` newArray numElems numBytes
   where twoBits | numBits < 1 = 1
                 | numBits > maxHash = maxHash
                 | isPowerOfTwo numBits = numBits
@@ -89,8 +89,8 @@ new hash numBits = MB hash shift mask `liftM` newArray numElems numBytes
         numElems = max 2 (twoBits `shiftR` logBitsInHash)
         numBytes = numElems `shiftL` logBytesInHash
         trueBits = numElems `shiftL` logBitsInHash
-        shift = logPower2 trueBits
-        mask = trueBits - 1
+        shft     = logPower2 trueBits
+        msk      = trueBits - 1
         isPowerOfTwo n = n .&. (n - 1) == 0
 
 maxHash :: Int
@@ -109,9 +109,9 @@ logBytesInHash = 2 -- logPower2 (sizeOf (undefined :: Hash))
 -- | Given a filter's mask and a hash value, compute an offset into
 -- a word array and a bit offset within that word.
 hashIdx :: Int -> Word32 -> (Int :* Int)
-hashIdx mask x = (y `shiftR` logBitsInHash) :* (y .&. hashMask)
+hashIdx msk x = (y `shiftR` logBitsInHash) :* (y .&. hashMask)
   where hashMask = 31 -- bitsInHash - 1
-        y = fromIntegral x .&. mask
+        y = fromIntegral x .&. msk
 
 -- | Hash the given value, returning a list of (word offset, bit
 -- offset) pairs, one per hash value.

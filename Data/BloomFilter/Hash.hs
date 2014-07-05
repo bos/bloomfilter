@@ -96,13 +96,13 @@ class Hashable a where
                    h1 <- hashIO32 v s1
                    h2 <- hashIO32 v s2
                    return $ (fromIntegral h1 `shiftL` 32) .|. fromIntegral h2
-      
+
 -- | Compute a 32-bit hash.
 hash32 :: Hashable a => a -> Word32
-hash32 = hashSalt32 0x106fc397
+hash32 = hashSalt32 0x16fc397c
 
 hash64 :: Hashable a => a -> Word64
-hash64 = hashSalt64 0x106fc397cf62f64d3
+hash64 = hashSalt64 0x16fc397cf62f64d3
 
 -- | Compute a salted 32-bit hash.
 hashSalt32 :: Hashable a => Word32  -- ^ salt
@@ -123,7 +123,7 @@ hashSalt64 salt k = unsafePerformIO $ hashIO64 k salt
 hashes :: Hashable a => Int     -- ^ number of hashes to compute
        -> a                     -- ^ value to hash
        -> [Word32]
-hashes n v = unfoldr go (n,0x3f56da2d3ddbb9f6)
+hashes n v = unfoldr go (n,0x3f56da2d)
     where go (k,s) | k <= 0    = Nothing
                    | otherwise = let s' = hashSalt32 s v
                                  in Just (s', (k-1,s'))
@@ -160,7 +160,7 @@ instance Hashable () where
 
 instance Hashable Integer where
     hashIO32 k salt | k < 0 = hashIO32 (unfoldr go (-k))
-                                   (salt `xor` 0x3ece731e9c1c64f8)
+                                   (salt `xor` 0x3ece731e)
                   | otherwise = hashIO32 (unfoldr go k) salt
         where go 0 = Nothing
               go i = Just (fromIntegral i :: Word32, i `shiftR` 32)
@@ -377,7 +377,7 @@ hashChunks s salt = do
                 then step c (fromIntegral (nstoff - stoff))
                 else frag xs nstoff
             frag LB.Empty stoff = return (fromIntegral (12 - stoff))
-        c_begin p1 p2 st 
+        c_begin p1 p2 st
         unread <- step s 0
         c_end (fromIntegral unread) p1 p2 st
       peek sp
