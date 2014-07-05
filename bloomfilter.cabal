@@ -18,7 +18,7 @@ extra-source-files: README.markdown cbits/lookup3.c cbits/lookup3.h
 library
   build-depends:
     array,
-    base       >= 4 && < 5,
+    base       >= 4.4 && < 5,
     bytestring >= 0.9,
     deepseq
   exposed-modules:  Data.BloomFilter
@@ -40,8 +40,8 @@ test-suite tests
   main-is:        QC.hs
   other-modules:  QCSupport
   build-depends:
-    QuickCheck >= 2.5 && < 2.8,
-    base >= 4 && < 5,
+    QuickCheck >= 2.5,
+    base >= 4.4 && < 5,
     bloomfilter,
     bytestring,
     random,
