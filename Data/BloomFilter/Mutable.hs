@@ -1,5 +1,5 @@
 {-# LANGUAGE BangPatterns, CPP, Rank2Types,
-    TypeOperators #-}
+    TypeOperators,FlexibleContexts #-}
 
 -- |
 -- Module: Data.BloomFilter.Mutable
