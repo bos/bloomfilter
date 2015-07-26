@@ -106,6 +106,17 @@ instance NFData (Bloom a) where
 logBitsInHash :: Int
 logBitsInHash = 5 -- logPower2 bitsInHash
 
+-- | Create an immutable Bloom filter from the underlying bit array.
+-- This creates a valid Bloom filter if and only if the arguments passed to
+-- @unsafeCreate@ are the same as those that were passed to @create@ or @new@ for the original Bloom filter.
+unsafeCreate :: (a -> [Hash])        -- ^ family of hash functions to use
+             -> Int                  -- ^ number of bits in filter
+             -> UArray Int Hash      -- ^ Underlying bit array.
+             -> Bloom a
+unsafeCreate hash numBits bits =
+  (create hash numBits (\_ -> return ())) { bitArray = bits }
+
+
 -- | Create an immutable Bloom filter, using the given setup function
 -- which executes in the 'ST' monad.
 --
