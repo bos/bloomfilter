@@ -70,7 +70,8 @@ module Data.BloomFilter
 
     -- | The raw bit array used by the immutable 'Bloom' type.
     , bitArray
-    , unsafeCreate
+    , serialize
+    , unsafeDeserialize
     ) where
 
 import Control.Monad (liftM, forM_)
@@ -85,6 +86,9 @@ import qualified Data.BloomFilter.Mutable as MB
 import qualified Data.BloomFilter.Mutable.Internal as MB
 import Data.BloomFilter.Mutable.Internal (Hash, MBloom)
 import Data.Word (Word32)
+
+import Data.Serialize
+import Data.ByteString (ByteString)
 
 import Prelude hiding (elem, length, notElem,
                        (/), (*), div, divMod, mod, rem)
@@ -106,17 +110,6 @@ instance NFData (Bloom a) where
 
 logBitsInHash :: Int
 logBitsInHash = 5 -- logPower2 bitsInHash
-
--- | Create an immutable Bloom filter from the underlying bit array.
--- This creates a valid Bloom filter if and only if the arguments passed to
--- @unsafeCreate@ are the same as those that were passed to @create@ or @new@ for the original Bloom filter.
-unsafeCreate :: (a -> [Hash])        -- ^ family of hash functions to use
-             -> Int                  -- ^ number of bits in filter
-             -> UArray Int Hash      -- ^ Underlying bit array.
-             -> Bloom a
-unsafeCreate hash numBits bits =
-  (create hash numBits (\_ -> return ())) { bitArray = bits }
-
 
 -- | Create an immutable Bloom filter, using the given setup function
 -- which executes in the 'ST' monad.
@@ -331,6 +324,21 @@ logPower2 :: Int -> Int
 logPower2 k = go 0 k
     where go j 1 = j
           go j n = go (j+1) (n `shiftR` 1)
+
+serialize :: Bloom a -> ByteString
+serialize bloom = encode (shift bloom, mask bloom, bitArray bloom)
+
+unsafeDeserialize :: (a -> [Hash]) -> ByteString -> Either String (Bloom a)
+unsafeDeserialize hashes bs =
+  case decode bs of
+    Left err -> Left err
+    Right (shift, mask, bitArray) -> Right $ B
+      { hashes = hashes
+      , shift = shift
+      , mask = mask
+      , bitArray = bitArray
+      }
+
 
 -- $overview
 --
