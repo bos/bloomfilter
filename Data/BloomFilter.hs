@@ -70,6 +70,7 @@ module Data.BloomFilter
 
     -- | The raw bit array used by the immutable 'Bloom' type.
     , bitArray
+    , unsafeCreate
     ) where
 
 import Control.Monad (liftM, forM_)
