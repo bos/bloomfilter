@@ -20,6 +20,7 @@ library
     array,
     base       >= 4.4 && < 5,
     bytestring >= 0.9,
+    cereal >= 0.4,
     deepseq
   exposed-modules:  Data.BloomFilter
                     Data.BloomFilter.Easy
