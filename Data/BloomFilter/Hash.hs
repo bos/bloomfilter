@@ -134,7 +134,7 @@ hashes n v = unfoldr go (n,0x3f56da2d)
 --
 -- We use a variant of Kirsch and Mitzenmacher's technique from \"Less
 -- Hashing, Same Performance: Building a Better Bloom Filter\",
--- <http://www.eecs.harvard.edu/~kirsch/pubs/bbbf/esa06.pdf>.
+-- <https://www.eecs.harvard.edu/~michaelm/postscripts/tr-02-05.pdf>.
 --
 -- Where Kirsch and Mitzenmacher multiply the second hash by a
 -- coefficient, we shift right by the coefficient.  This offers better
