@@ -252,7 +252,7 @@ insertList elts = modify $ \mb -> mapM_ (MB.insert mb) elts
 
 -- | Query an immutable Bloom filter for non-membership.  If the value
 -- /is/ present, return @False@.  If the value is not present, there
--- is /still/ some possibility that @True@ will be returned.
+-- is /still/ some possibility that @False@ will be returned.
 notElem :: a -> Bloom a -> Bool
 notElem elt ub = any test (hashesU ub elt)
   where test (off :* bit) = (bitArray ub `unsafeAt` off) .&. (1 `shiftL` bit) == 0
