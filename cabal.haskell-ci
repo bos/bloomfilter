@@ -1,0 +1,4 @@
+branches: master
+
+-- `cabal check` fails with warnings regarding the package description and -O2.
+cabal-check: False
