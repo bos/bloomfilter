@@ -78,8 +78,8 @@ import Control.DeepSeq (NFData(..))
 import Data.Array.Base (unsafeAt)
 import qualified Data.Array.Base as ST
 import Data.Array.Unboxed (UArray)
-import Data.Bits ((.&.))
-import Data.BloomFilter.Util (FastShift(..), (:*)(..))
+import Data.Bits ((.&.), unsafeShiftL, unsafeShiftR)
+import Data.BloomFilter.Util ((:*)(..))
 import qualified Data.BloomFilter.Mutable as MB
 import qualified Data.BloomFilter.Mutable.Internal as MB
 import Data.BloomFilter.Mutable.Internal (Hash, MBloom)
@@ -98,7 +98,7 @@ data Bloom a = B {
     }
 
 instance Show (Bloom a) where
-    show ub = "Bloom { " ++ show ((1::Int) `shiftL` shift ub) ++ " bits } "
+    show ub = "Bloom { " ++ show ((1::Int) `unsafeShiftL` shift ub) ++ " bits } "
 
 instance NFData (Bloom a) where
     rnf !_ = ()
@@ -172,7 +172,7 @@ singleton hash numBits elt = create hash numBits (\mb -> MB.insert mb elt)
 -- | Given a filter's mask and a hash value, compute an offset into
 -- a word array and a bit offset within that word.
 hashIdx :: Int -> Word32 -> (Int :* Int)
-hashIdx mask x = (y `shiftR` logBitsInHash) :* (y .&. hashMask)
+hashIdx mask x = (y `unsafeShiftR` logBitsInHash) :* (y .&. hashMask)
   where hashMask = 31 -- bitsInHash - 1
         y = fromIntegral x .&. mask
 
@@ -191,7 +191,7 @@ hashesU ub elt = hashIdx (mask ub) `map` hashes ub elt
 -- /still/ some possibility that @True@ will be returned.
 elem :: a -> Bloom a -> Bool
 elem elt ub = all test (hashesU ub elt)
-  where test (off :* bit) = (bitArray ub `unsafeAt` off) .&. (1 `shiftL` bit) /= 0
+  where test (off :* bit) = (bitArray ub `unsafeAt` off) .&. (1 `unsafeShiftL` bit) /= 0
           
 modify :: (forall s. (MBloom s a -> ST s z))  -- ^ mutation function (result is discarded)
         -> Bloom a
@@ -255,11 +255,11 @@ insertList elts = modify $ \mb -> mapM_ (MB.insert mb) elts
 -- is /still/ some possibility that @True@ will be returned.
 notElem :: a -> Bloom a -> Bool
 notElem elt ub = any test (hashesU ub elt)
-  where test (off :* bit) = (bitArray ub `unsafeAt` off) .&. (1 `shiftL` bit) == 0
+  where test (off :* bit) = (bitArray ub `unsafeAt` off) .&. (1 `unsafeShiftL` bit) == 0
 
 -- | Return the size of an immutable Bloom filter, in bits.
 length :: Bloom a -> Int
-length = shiftL 1 . shift
+length = unsafeShiftL 1 . shift
 
 -- | Build an immutable Bloom filter from a seed value.  The seeding
 -- function populates the filter as follows.
@@ -318,7 +318,7 @@ fromList hashes numBits = unfold hashes numBits convert
 logPower2 :: Int -> Int
 logPower2 k = go 0 k
     where go j 1 = j
-          go j n = go (j+1) (n `shiftR` 1)
+          go j n = go (j+1) (n `unsafeShiftR` 1)
 
 -- $overview
 --

@@ -65,9 +65,9 @@ module Data.BloomFilter.Mutable
 import Control.Monad (liftM, forM_)
 import Control.Monad.ST (ST)
 import Data.Array.Base (unsafeRead, unsafeWrite)
-import Data.Bits ((.&.), (.|.))
+import Data.Bits ((.&.), (.|.), unsafeShiftL, unsafeShiftR)
 import Data.BloomFilter.Array (newArray)
-import Data.BloomFilter.Util (FastShift(..), (:*)(..), nextPowerOfTwo)
+import Data.BloomFilter.Util ((:*)(..), nextPowerOfTwo)
 import Data.Word (Word32)
 import Data.BloomFilter.Mutable.Internal
 
@@ -86,9 +86,9 @@ new hash numBits = MB hash shft msk `liftM` newArray numElems numBytes
                 | numBits > maxHash = maxHash
                 | isPowerOfTwo numBits = numBits
                 | otherwise = nextPowerOfTwo numBits
-        numElems = max 2 (twoBits `shiftR` logBitsInHash)
-        numBytes = numElems `shiftL` logBytesInHash
-        trueBits = numElems `shiftL` logBitsInHash
+        numElems = max 2 (twoBits `unsafeShiftR` logBitsInHash)
+        numBytes = numElems `unsafeShiftL` logBytesInHash
+        trueBits = numElems `unsafeShiftL` logBitsInHash
         shft     = logPower2 trueBits
         msk      = trueBits - 1
         isPowerOfTwo n = n .&. (n - 1) == 0
@@ -109,7 +109,7 @@ logBytesInHash = 2 -- logPower2 (sizeOf (undefined :: Hash))
 -- | Given a filter's mask and a hash value, compute an offset into
 -- a word array and a bit offset within that word.
 hashIdx :: Int -> Word32 -> (Int :* Int)
-hashIdx msk x = (y `shiftR` logBitsInHash) :* (y .&. hashMask)
+hashIdx msk x = (y `unsafeShiftR` logBitsInHash) :* (y .&. hashMask)
   where hashMask = 31 -- bitsInHash - 1
         y = fromIntegral x .&. msk
 
@@ -125,7 +125,7 @@ insert mb elt = do
   let mu = bitArray mb
   forM_ (hashesM mb elt) $ \(word :* bit) -> do
       old <- unsafeRead mu word
-      unsafeWrite mu word (old .|. (1 `shiftL` bit))
+      unsafeWrite mu word (old .|. (1 `unsafeShiftL` bit))
 
 -- | Query a mutable Bloom filter for membership.  If the value is
 -- present, return @True@.  If the value is not present, there is
@@ -135,7 +135,7 @@ elem elt mb = loop (hashesM mb elt)
   where mu = bitArray mb
         loop ((word :* bit):wbs) = do
           i <- unsafeRead mu word
-          if i .&. (1 `shiftL` bit) == 0
+          if i .&. (1 `unsafeShiftL` bit) == 0
             then return False
             else loop wbs
         loop _ = return True
@@ -145,7 +145,7 @@ elem elt mb = loop (hashesM mb elt)
 
 -- | Return the size of a mutable Bloom filter, in bits.
 length :: MBloom s a -> Int
-length = shiftL 1 . shift
+length = unsafeShiftL 1 . shift
 
 
 -- | Slow, crummy way of computing the integer log of an integer known
@@ -153,7 +153,7 @@ length = shiftL 1 . shift
 logPower2 :: Int -> Int
 logPower2 k = go 0 k
     where go j 1 = j
-          go j n = go (j+1) (n `shiftR` 1)
+          go j n = go (j+1) (n `unsafeShiftR` 1)
 
 -- $overview
 --

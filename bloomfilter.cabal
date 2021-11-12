@@ -18,7 +18,7 @@ extra-source-files: README.markdown cbits/lookup3.c cbits/lookup3.h
 library
   build-depends:
     array,
-    base       >= 4.4 && < 5,
+    base       >= 4.5 && < 5,
     bytestring >= 0.9,
     deepseq
   exposed-modules:  Data.BloomFilter

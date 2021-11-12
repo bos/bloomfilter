@@ -38,8 +38,7 @@ module Data.BloomFilter.Hash
     ) where
 
 import Control.Monad (foldM)
-import Data.Bits ((.&.), (.|.), xor)
-import Data.BloomFilter.Util (FastShift(..))
+import Data.Bits ((.&.), (.|.), unsafeShiftL, unsafeShiftR, xor)
 import Data.List (unfoldr)
 import Data.Int (Int8, Int16, Int32, Int64)
 import Data.Word (Word8, Word16, Word32, Word64)
@@ -91,11 +90,11 @@ class Hashable a where
              -> Word64           -- ^ salt
              -> IO Word64
     hashIO64 v salt = do
-                   let s1 = fromIntegral (salt `shiftR` 32) .&. maxBound
+                   let s1 = fromIntegral (salt `unsafeShiftR` 32) .&. maxBound
                        s2 = fromIntegral salt
                    h1 <- hashIO32 v s1
                    h2 <- hashIO32 v s2
-                   return $ (fromIntegral h1 `shiftL` 32) .|. fromIntegral h2
+                   return $ (fromIntegral h1 `unsafeShiftL` 32) .|. fromIntegral h2
 
 -- | Compute a 32-bit hash.
 hash32 :: Hashable a => a -> Word32
@@ -149,8 +148,8 @@ cheapHashes :: Hashable a => Int -- ^ number of hashes to compute
 cheapHashes k v = go 0
     where go i | i == j = []
                | otherwise = hash : go (i + 1)
-               where !hash = h1 + (h2 `shiftR` i)
-          h1 = fromIntegral (h `shiftR` 32)
+               where !hash = h1 + (h2 `unsafeShiftR` i)
+          h1 = fromIntegral (h `unsafeShiftR` 32)
           h2 = fromIntegral h
           h = hashSalt64 0x9150a946c4a8966e v
           j = fromIntegral k
@@ -163,7 +162,7 @@ instance Hashable Integer where
                                    (salt `xor` 0x3ece731e)
                   | otherwise = hashIO32 (unfoldr go k) salt
         where go 0 = Nothing
-              go i = Just (fromIntegral i :: Word32, i `shiftR` 32)
+              go i = Just (fromIntegral i :: Word32, i `unsafeShiftR` 32)
 
 instance Hashable Bool where
     hashIO32 = hashOne32
@@ -224,7 +223,7 @@ instance Hashable Word64 where
 -- | A fast unchecked shift.  Nasty, but otherwise GHC 6.8.2 does a
 -- test and branch on every shift.
 div4 :: CSize -> CSize
-div4 k = fromIntegral ((fromIntegral k :: HTYPE_SIZE_T) `shiftR` 2)
+div4 k = fromIntegral ((fromIntegral k :: HTYPE_SIZE_T) `unsafeShiftR` 2)
 
 alignedHash :: Ptr a -> CSize -> Word32 -> IO Word32
 alignedHash ptr bytes salt
