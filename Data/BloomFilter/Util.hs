@@ -40,10 +40,10 @@ class FastShift a where
 
 instance FastShift Word32 where
     {-# INLINE shiftL #-}
-    shiftL (W32# x#) (I# i#) = W32# (x# `uncheckedShiftL#` i#)
+    shiftL (W32# x#) (I# i#) = W32# (x# `uncheckedShiftLWord32#` i#)
 
     {-# INLINE shiftR #-}
-    shiftR (W32# x#) (I# i#) = W32# (x# `uncheckedShiftRL#` i#)
+    shiftR (W32# x#) (I# i#) = W32# (x# `uncheckedShiftRLWord32#` i#)
 
 instance FastShift Word64 where
     {-# INLINE shiftL #-}
